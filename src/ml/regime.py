@@ -148,17 +148,26 @@ def smooth_regime(
     """
     smoothed = regime_series.copy()
     current = regime_series.iloc[0]
-    streak = 1
+    pending = None
+    pending_streak = 0
 
     for i in range(1, len(regime_series)):
-        if regime_series.iloc[i] == current:
-            streak += 1
+        raw = regime_series.iloc[i]
+        if raw == current:
+            # Back to current regime — reset any pending switch
+            pending = None
+            pending_streak = 0
+        elif raw == pending:
+            # Continuation of candidate new regime
+            pending_streak += 1
+            if pending_streak >= min_persistence:
+                current = pending
+                pending = None
+                pending_streak = 0
         else:
-            if streak >= min_persistence:
-                current = regime_series.iloc[i]
-                streak = 1
-            else:
-                streak += 1
+            # Different new regime — start tracking it
+            pending = raw
+            pending_streak = 1
 
         smoothed.iloc[i] = current
 

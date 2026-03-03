@@ -6,6 +6,7 @@ Skill reference: .claude/skills/secrets-security/SKILL.md
 import hashlib
 import json
 from datetime import datetime, timezone
+from pathlib import Path
 
 
 class AuditLogger:
@@ -16,6 +17,7 @@ class AuditLogger:
 
     def __init__(self, path: str):
         self.path = path
+        Path(path).parent.mkdir(parents=True, exist_ok=True)
         self._last_hash = self._compute_file_hash()
 
     def log(self, event_type: str, data: dict):

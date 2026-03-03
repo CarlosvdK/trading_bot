@@ -154,16 +154,17 @@ class TestOrderManager:
         broker = PaperBroker(prices, cm, {})
         risk_config = RiskConfig(
             max_position_pct_swing=1.0,
-            max_gross_exposure=5.0,
+            max_gross_exposure_pct=5.0,
         )
         governor = RiskGovernor(risk_config)
         state = PortfolioState(
             nav=100_000,
             peak_nav=100_000,
+            cash=40_000,
             day_start_nav=100_000,
-            week_start_nav_swing=30_000,
+            week_start_swing_nav=30_000,
             positions={},
-            sleeve_nav={"swing": 30_000, "core": 60_000},
+            sleeve_values={"swing": 30_000, "core": 60_000},
         )
         manager = OrderManager(broker, governor, state, {})
         return manager, prices

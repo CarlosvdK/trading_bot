@@ -141,12 +141,13 @@ class TestGetRegimeAllocation:
 
 
 class TestSmoothRegime:
-    def test_removes_single_day_noise(self):
-        # Regime 0 for most days, with a single day of regime 1 in the middle
-        labels = pd.Series([0]*10 + [1] + [0]*10)
+    def test_removes_short_noise(self):
+        # Regime 0 for 10 days, 2 days of regime 1 (below persistence=3), then back to 0
+        labels = pd.Series([0]*10 + [1, 1] + [0]*10)
         smoothed = smooth_regime(labels, min_persistence=3)
-        # The single day of regime 1 should be smoothed away
+        # The 2-day blip should not cause a regime switch
         assert smoothed.iloc[10] == 0
+        assert smoothed.iloc[11] == 0
 
     def test_allows_persistent_change(self):
         labels = pd.Series([0]*10 + [1]*5 + [0]*5)
