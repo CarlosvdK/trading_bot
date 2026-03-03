@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 """
 Download OHLCV data for the trading universe.
-Uses Polygon (primary), Stooq (free fallback), Alpha Vantage (last resort).
+Uses yfinance (primary), Polygon, Stooq, Alpha Vantage (fallbacks).
 
 Usage:
     python scripts/download_data.py
     python scripts/download_data.py --symbols AAPL MSFT GOOGL
-    python scripts/download_data.py --start 2010-01-01 --source polygon
+    python scripts/download_data.py --start 2010-01-01 --source yfinance
+    python scripts/download_data.py --retry-failed
 """
 
 import argparse
@@ -14,7 +15,6 @@ import logging
 import sys
 from pathlib import Path
 
-# Add project root to path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from src.data.api_providers import (
@@ -22,6 +22,7 @@ from src.data.api_providers import (
     PolygonDownloader,
     AlphaVantageDownloader,
     StooqDownloader,
+    YFinanceDownloader,
 )
 
 logging.basicConfig(
@@ -58,14 +59,19 @@ def main():
     )
     parser.add_argument(
         "--source",
-        choices=["polygon", "alphavantage", "stooq", "auto"],
+        choices=["polygon", "alphavantage", "stooq", "yfinance", "auto"],
         default="auto",
-        help="Data source (default: auto = fallback chain)",
+        help="Data source (default: auto = yfinance first, then fallback chain)",
     )
     parser.add_argument(
         "--output-dir",
         default=OUTPUT_DIR,
         help=f"Output directory (default: {OUTPUT_DIR})",
+    )
+    parser.add_argument(
+        "--retry-failed",
+        action="store_true",
+        help="Only download symbols that have no CSV file yet",
     )
     args = parser.parse_args()
 
@@ -85,8 +91,21 @@ def main():
             symbols = DEFAULT_UNIVERSE
             logger.info(f"No universe file found, using defaults: {symbols}")
 
-    logger.info(f"Downloading {len(symbols)} symbols: {symbols}")
-    logger.info(f"Date range: {args.start} → {args.end or 'today'}")
+    # Filter to only missing symbols if --retry-failed
+    if args.retry_failed:
+        existing = {p.stem for p in Path(args.output_dir).glob("*.csv")}
+        before = len(symbols)
+        symbols = [s for s in symbols if s not in existing]
+        logger.info(
+            f"Retry mode: {len(symbols)} symbols need downloading "
+            f"({before - len(symbols)} already exist)"
+        )
+        if not symbols:
+            logger.info("All symbols already downloaded!")
+            return
+
+    logger.info(f"Downloading {len(symbols)} symbols: {symbols[:10]}{'...' if len(symbols) > 10 else ''}")
+    logger.info(f"Date range: {args.start} -> {args.end or 'today'}")
     logger.info(f"Output: {args.output_dir}")
 
     # Select downloader
@@ -95,6 +114,9 @@ def main():
         results = downloader.download_universe(
             symbols, args.start, args.end
         )
+    elif args.source == "yfinance":
+        dl = YFinanceDownloader(args.output_dir)
+        results = dl.download_universe(symbols, args.start, args.end)
     elif args.source == "polygon":
         dl = PolygonDownloader(args.output_dir)
         results = dl.download_universe(symbols, args.start, args.end)
@@ -112,7 +134,9 @@ def main():
     print(f"\n{'='*50}")
     print(f"Download complete: {succeeded}/{len(symbols)} symbols")
     if failed:
-        print(f"Failed: {', '.join(failed)}")
+        print(f"Failed ({len(failed)}): {', '.join(failed[:20])}")
+        if len(failed) > 20:
+            print(f"  ... and {len(failed) - 20} more")
     print(f"Data saved to: {args.output_dir}")
     print(f"{'='*50}")
 

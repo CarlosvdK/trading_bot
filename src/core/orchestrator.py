@@ -53,6 +53,14 @@ class TradingOrchestrator:
         self.state_file = self.root_dir / "state" / "orchestrator_state.json"
         self.state_file.parent.mkdir(parents=True, exist_ok=True)
 
+        # Load sector mapping from universe.csv
+        self._sector_mapping = self._load_sector_mapping()
+        self._universe_closes = None  # Built lazily on first use
+
+        # Inject sector mapping into config for trainer
+        config_with_sectors = dict(config)
+        config_with_sectors["_sector_mapping"] = self._sector_mapping
+
         # Core components
         self.risk_config = RiskConfig(**{
             k: v for k, v in config.get("risk", {}).items()
@@ -60,7 +68,7 @@ class TradingOrchestrator:
         })
         self.risk_governor = RiskGovernor(self.risk_config)
         self.ml_trainer = MLTrainer(
-            config, models_dir=str(self.root_dir / "models")
+            config_with_sectors, models_dir=str(self.root_dir / "models")
         )
         self.audit = AuditLogger(str(self.root_dir / "logs" / "audit.jsonl"))
 
@@ -111,6 +119,35 @@ class TradingOrchestrator:
             day_start_nav=initial_nav,
         )
 
+    def _load_sector_mapping(self) -> dict:
+        """Load symbol → sector_etf mapping from universe.csv."""
+        universe_file = self.config.get("data", {}).get(
+            "universe_file",
+            str(self.root_dir / "data" / "universe.csv"),
+        )
+        try:
+            if Path(universe_file).exists():
+                df = pd.read_csv(universe_file)
+                if "sector_etf" in df.columns:
+                    mapping = dict(zip(df["symbol"], df["sector_etf"].fillna("")))
+                    logger.info(
+                        f"Loaded sector mapping for {sum(1 for v in mapping.values() if v)} symbols"
+                    )
+                    return mapping
+        except Exception as e:
+            logger.warning(f"Could not load sector mapping: {e}")
+        return {}
+
+    def _get_universe_closes(
+        self, price_data: Dict[str, pd.DataFrame], as_of: pd.Timestamp = None
+    ) -> pd.DataFrame:
+        """Build/cache universe closes DataFrame for breadth features."""
+        if self._universe_closes is None:
+            self._universe_closes = self.ml_trainer._build_universe_closes(price_data)
+        if as_of is not None and not self._universe_closes.empty:
+            return self._universe_closes[self._universe_closes.index <= as_of]
+        return self._universe_closes
+
     # ------------------------------------------------------------------
     # Warm-up: train everything from scratch if no models exist
     # ------------------------------------------------------------------
@@ -127,6 +164,9 @@ class TradingOrchestrator:
         """
         if self._warmup_done:
             return
+
+        # Build universe closes cache for breadth features
+        self._universe_closes = self.ml_trainer._build_universe_closes(price_data)
 
         # --- Train regime model ---
         if index_df is not None and not index_df.empty and len(index_df) > 200:
@@ -279,8 +319,14 @@ class TradingOrchestrator:
                 continue
 
             # ML filter — this is where the model earns its keep
+            sector_etf_sym = self._sector_mapping.get(sym)
+            sector_etf_df = price_data.get(sector_etf_sym) if sector_etf_sym else None
+            uc = self._get_universe_closes(price_data, current_date)
+
             ml_prob = self.ml_trainer.predict_single(
-                vol_df, index_df, current_date
+                vol_df, index_df, current_date,
+                sector_etf_df=sector_etf_df,
+                universe_closes=uc,
             )
 
             # Log prediction for future drift monitoring

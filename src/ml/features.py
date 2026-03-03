@@ -11,6 +11,8 @@ def build_features(
     symbol_df: pd.DataFrame,
     index_df: pd.DataFrame,
     config: dict,
+    sector_etf_df: pd.DataFrame = None,
+    universe_closes: pd.DataFrame = None,
 ) -> pd.DataFrame:
     """
     Builds complete feature matrix for one symbol.
@@ -108,6 +110,32 @@ def build_features(
     # --- Mean reversion signal (distance from 50-day MA) ---
     ma50 = df["close"].rolling(50).mean()
     feats["dist_ma50_pct"] = (df["close"] - ma50) / ma50.replace(0, np.nan)
+
+    # --- Sector features (if sector ETF data provided) ---
+    if sector_etf_df is not None and not sector_etf_df.empty:
+        sector_close = sector_etf_df["close"].reindex(df.index).ffill()
+        log_sector = np.log(sector_close.replace(0, np.nan))
+
+        feats["sector_ret_21d"] = log_sector - log_sector.shift(21)
+
+        if "ret_21d" in feats.columns:
+            feats["sector_rel_ret"] = feats["ret_21d"] - feats["sector_ret_21d"]
+
+    # --- Market breadth features (if universe close prices provided) ---
+    if universe_closes is not None and not universe_closes.empty:
+        uc = universe_closes.reindex(df.index).ffill()
+
+        # % of universe above their 50-day MA
+        uc_ma50 = uc.rolling(50, min_periods=30).mean()
+        pct_above = (uc > uc_ma50).astype(float).mean(axis=1)
+        feats["breadth_pct_above_ma50"] = pct_above
+
+        # Rolling 10-day advance/decline ratio
+        daily_ret = uc.pct_change()
+        advancing = (daily_ret > 0).sum(axis=1)
+        declining = (daily_ret < 0).sum(axis=1).replace(0, np.nan)
+        ad_ratio = advancing / declining
+        feats["breadth_advance_decline"] = ad_ratio.rolling(10).mean()
 
     # --- Winsorize all features at 3 sigma (rolling) ---
     clip_sigma = config.get("winsorize_sigma", 3.0)

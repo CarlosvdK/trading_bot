@@ -82,6 +82,20 @@ features:
   winsorize_sigma: 3.0
   rolling_norm_window: 252
   min_history_days: 63
+  sector_features_enabled: true
+  breadth_features_enabled: true
+  sector_etf_symbols:
+    - XLK
+    - XLF
+    - XLV
+    - XLE
+    - XLI
+    - XLY
+    - XLP
+    - XLU
+    - XLRE
+    - XLC
+    - XLB
 
 ml:
   entry_threshold: 0.20

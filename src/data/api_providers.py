@@ -1,5 +1,5 @@
 """
-API-based data providers: Polygon, Alpha Vantage, Stooq.
+API-based data providers: yfinance, Polygon, Alpha Vantage, Stooq.
 All providers download OHLCV → save to CSV → load via CSVDataProvider.
 This ensures backtests always run from local files (reproducibility).
 """
@@ -314,13 +314,142 @@ class StooqDownloader:
 
 
 # ---------------------------------------------------------------------------
+# Yahoo Finance provider (free, no API key, bulk-capable)
+# ---------------------------------------------------------------------------
+
+class YFinanceDownloader:
+    """
+    Downloads daily OHLCV from Yahoo Finance via yfinance.
+    Free, no API key required. Supports efficient bulk downloads.
+    """
+
+    def __init__(self, output_dir: str):
+        self.output_dir = Path(output_dir)
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+
+    def download_symbol(
+        self,
+        symbol: str,
+        start_date: str = "2015-01-01",
+        end_date: Optional[str] = None,
+    ) -> Optional[Path]:
+        """Download daily adjusted OHLCV for a single symbol."""
+        import yfinance as yf
+
+        ticker = yf.Ticker(symbol)
+        df = ticker.history(
+            start=start_date,
+            end=end_date or None,
+            auto_adjust=True,
+        )
+
+        if df.empty or len(df) < 2:
+            logger.warning(f"yfinance: no data for {symbol}")
+            return None
+
+        df = df[["Open", "High", "Low", "Close", "Volume"]]
+        df.columns = ["open", "high", "low", "close", "volume"]
+        df.index.name = "date"
+        df = df.sort_index().reset_index()
+        df["date"] = pd.to_datetime(df["date"]).dt.tz_localize(None)
+
+        out_path = self.output_dir / f"{symbol}.csv"
+        df.to_csv(out_path, index=False)
+        logger.info(f"yfinance: saved {len(df)} bars for {symbol}")
+        return out_path
+
+    def download_bulk(
+        self,
+        symbols: List[str],
+        start_date: str = "2015-01-01",
+        end_date: Optional[str] = None,
+        batch_size: int = 50,
+    ) -> dict:
+        """
+        Bulk download using yf.download() for efficiency.
+        Downloads in batches to avoid timeouts on large universes.
+        """
+        import yfinance as yf
+
+        results = {}
+        total = len(symbols)
+
+        for i in range(0, total, batch_size):
+            batch = symbols[i : i + batch_size]
+            batch_num = i // batch_size + 1
+            total_batches = (total + batch_size - 1) // batch_size
+            logger.info(
+                f"yfinance batch {batch_num}/{total_batches}: "
+                f"symbols {i + 1}-{min(i + batch_size, total)}/{total}"
+            )
+
+            try:
+                data = yf.download(
+                    batch,
+                    start=start_date,
+                    end=end_date,
+                    auto_adjust=True,
+                    group_by="ticker",
+                    threads=True,
+                    progress=False,
+                )
+
+                for sym in batch:
+                    try:
+                        if len(batch) == 1:
+                            sym_df = data
+                        else:
+                            sym_df = data[sym]
+
+                        sym_df = sym_df.dropna(how="all")
+                        if sym_df.empty or len(sym_df) < 2:
+                            results[sym] = None
+                            continue
+
+                        sym_df.columns = [c.lower() for c in sym_df.columns]
+                        sym_df = sym_df[["open", "high", "low", "close", "volume"]]
+                        sym_df.index.name = "date"
+                        sym_df = sym_df.reset_index()
+                        sym_df["date"] = pd.to_datetime(
+                            sym_df["date"]
+                        ).dt.tz_localize(None)
+
+                        out_path = self.output_dir / f"{sym}.csv"
+                        sym_df.to_csv(out_path, index=False)
+                        results[sym] = out_path
+                    except Exception as e:
+                        logger.warning(f"yfinance: failed to extract {sym}: {e}")
+                        results[sym] = None
+            except Exception as e:
+                logger.error(f"yfinance bulk batch failed: {e}")
+                for sym in batch:
+                    results[sym] = None
+
+            time.sleep(1)
+
+        succeeded = sum(1 for v in results.values() if v)
+        logger.info(f"yfinance bulk: {succeeded}/{total} symbols downloaded")
+        return results
+
+    def download_universe(
+        self,
+        symbols: List[str],
+        start_date: str = "2015-01-01",
+        end_date: Optional[str] = None,
+        **kwargs,
+    ) -> dict:
+        """Use bulk download for efficiency."""
+        return self.download_bulk(symbols, start_date, end_date)
+
+
+# ---------------------------------------------------------------------------
 # Multi-source downloader with fallback chain
 # ---------------------------------------------------------------------------
 
 class DataDownloader:
     """
     Downloads OHLCV data using a priority chain of sources.
-    Default chain: Polygon → Stooq → Alpha Vantage (slowest).
+    Default chain: yfinance → Polygon → Stooq → Alpha Vantage.
     Saves all data as CSV to a single output directory.
     """
 
@@ -331,7 +460,16 @@ class DataDownloader:
 
         self.sources = []
 
-        # Polygon (best source if key available)
+        # yfinance (free, no key, bulk-capable — try first)
+        try:
+            import yfinance as _yf  # noqa: F401
+            self.sources.append(
+                ("yfinance", YFinanceDownloader(output_dir))
+            )
+        except ImportError:
+            logger.info("yfinance not installed — skipping as data source")
+
+        # Polygon (best quality if key available)
         polygon_key = get_secret("POLYGON_API_KEY", required=False)
         if polygon_key:
             self.sources.append(
@@ -357,7 +495,61 @@ class DataDownloader:
         end_date: Optional[str] = None,
     ) -> Optional[Path]:
         """Try each source in priority order until one succeeds."""
+        path = self._download_with_fallback(symbol, start_date, end_date)
+        if path is None:
+            logger.error(f"{symbol}: all sources failed")
+        return path
+
+    def download_universe(
+        self,
+        symbols: List[str],
+        start_date: str = "2015-01-01",
+        end_date: Optional[str] = None,
+    ) -> dict:
+        """Download all symbols. Uses bulk yfinance first, then fallback for failures."""
+        results = {}
+
+        # If yfinance available, try bulk download first (much faster)
+        if self.sources and self.sources[0][0] == "yfinance":
+            yf_dl = self.sources[0][1]
+            results = yf_dl.download_bulk(symbols, start_date, end_date)
+
+            # Fall through to other sources for failures
+            failed = [s for s, p in results.items() if p is None]
+            if failed:
+                logger.info(
+                    f"yfinance missed {len(failed)} symbols, trying fallbacks..."
+                )
+                for sym in failed:
+                    path = self._download_with_fallback(
+                        sym, start_date, end_date, skip_sources={"yfinance"}
+                    )
+                    results[sym] = path
+        else:
+            # Sequential fallback for each symbol
+            for i, sym in enumerate(symbols):
+                logger.info(f"[{i + 1}/{len(symbols)}] {sym}...")
+                results[sym] = self.download_symbol(sym, start_date, end_date)
+                time.sleep(0.3)
+
+        succeeded = sum(1 for v in results.values() if v)
+        logger.info(
+            f"Download complete: {succeeded}/{len(symbols)} symbols succeeded"
+        )
+        return results
+
+    def _download_with_fallback(
+        self,
+        symbol: str,
+        start_date: str,
+        end_date: Optional[str],
+        skip_sources: set = None,
+    ) -> Optional[Path]:
+        """Try each source except skipped ones."""
+        skip_sources = skip_sources or set()
         for name, downloader in self.sources:
+            if name in skip_sources:
+                continue
             try:
                 if isinstance(downloader, AlphaVantageDownloader):
                     path = downloader.download_symbol(symbol)
@@ -370,25 +562,4 @@ class DataDownloader:
                     return path
             except Exception as e:
                 logger.warning(f"{symbol}: {name} failed — {e}")
-                continue
-
-        logger.error(f"{symbol}: all sources failed")
         return None
-
-    def download_universe(
-        self,
-        symbols: List[str],
-        start_date: str = "2015-01-01",
-        end_date: Optional[str] = None,
-    ) -> dict:
-        """Download all symbols with fallback chain."""
-        results = {}
-        for i, sym in enumerate(symbols):
-            logger.info(f"[{i+1}/{len(symbols)}] {sym}...")
-            results[sym] = self.download_symbol(sym, start_date, end_date)
-            time.sleep(0.3)
-        succeeded = sum(1 for v in results.values() if v)
-        logger.info(
-            f"Download complete: {succeeded}/{len(symbols)} symbols succeeded"
-        )
-        return results

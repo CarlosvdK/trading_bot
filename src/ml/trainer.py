@@ -59,6 +59,9 @@ class MLTrainer:
         self.horizon = label_config.get("horizon_days", 10)
         self.vol_window = label_config.get("vol_window", 21)
 
+        # Sector mapping: symbol → sector ETF symbol (loaded externally)
+        self._sector_mapping: Dict[str, str] = config.get("_sector_mapping", {})
+
     def build_training_data(
         self,
         price_data: Dict[str, pd.DataFrame],
@@ -73,9 +76,17 @@ class MLTrainer:
         all_X = []
         all_y = []
 
+        # Build universe closes once for breadth features
+        universe_closes = self._build_universe_closes(price_data, train_end)
+
+        # Sector ETF symbols (don't trade them)
+        sector_etf_syms = set(self._sector_mapping.values()) - {""}
+
         for symbol, df in price_data.items():
             if symbol == self.config.get("features", {}).get("index_symbol", "SPY"):
                 continue  # Don't trade the index itself
+            if symbol in sector_etf_syms:
+                continue  # Don't trade sector ETFs
 
             df_train = df[df.index <= train_end]
             idx_train = index_df[index_df.index <= train_end]
@@ -83,8 +94,20 @@ class MLTrainer:
             if len(df_train) < 100:
                 continue
 
+            # Sector ETF for this symbol
+            sector_etf_sym = self._sector_mapping.get(symbol)
+            sector_etf_df = None
+            if sector_etf_sym and sector_etf_sym in price_data:
+                sector_etf_df = price_data[sector_etf_sym][
+                    price_data[sector_etf_sym].index <= train_end
+                ]
+
             # Build features
-            feats = build_features(df_train, idx_train, self.config)
+            feats = build_features(
+                df_train, idx_train, self.config,
+                sector_etf_df=sector_etf_df,
+                universe_closes=universe_closes,
+            )
             if feats.empty:
                 continue
 
@@ -362,6 +385,23 @@ class MLTrainer:
             "fold_metrics": fold_metrics,
         }
 
+    @staticmethod
+    def _build_universe_closes(
+        price_data: Dict[str, pd.DataFrame],
+        as_of: pd.Timestamp = None,
+    ) -> pd.DataFrame:
+        """Build DataFrame with close prices for all symbols (columns=symbols)."""
+        closes = {}
+        for sym, df in price_data.items():
+            if "close" in df.columns:
+                s = df["close"]
+                if as_of is not None:
+                    s = s[s.index <= as_of]
+                closes[sym] = s
+        if not closes:
+            return pd.DataFrame()
+        return pd.DataFrame(closes)
+
     def predict(self, X: pd.DataFrame) -> np.ndarray:
         """
         Get calibrated probabilities for new data.
@@ -384,6 +424,8 @@ class MLTrainer:
         symbol_df: pd.DataFrame,
         index_df: pd.DataFrame,
         date: pd.Timestamp,
+        sector_etf_df: pd.DataFrame = None,
+        universe_closes: pd.DataFrame = None,
     ) -> float:
         """
         Get ML probability for a single symbol on a single date.
@@ -394,14 +436,26 @@ class MLTrainer:
 
         try:
             feats = build_features(
-                symbol_df.loc[:date], index_df.loc[:date], self.config
+                symbol_df.loc[:date], index_df.loc[:date], self.config,
+                sector_etf_df=sector_etf_df.loc[:date] if sector_etf_df is not None else None,
+                universe_closes=universe_closes.loc[:date] if universe_closes is not None else None,
             )
             if feats.empty or date not in feats.index:
                 return 0.5
 
             X = feats.loc[[date]].fillna(0)
-            feature_cols = [c for c in X.columns if not c.startswith("_")]
-            prob = self.current_model.predict_proba(X[feature_cols])[:, 1][0]
+
+            # Use only features the model was trained on
+            expected = (
+                self.current_meta.get("feature_list", [])
+                if self.current_meta else []
+            )
+            if expected:
+                X = X.reindex(columns=expected, fill_value=0)
+            else:
+                X = X[[c for c in X.columns if not c.startswith("_")]]
+
+            prob = self.current_model.predict_proba(X)[:, 1][0]
             return float(prob)
         except Exception as e:
             logger.warning(f"predict_single failed for {date}: {e}")
