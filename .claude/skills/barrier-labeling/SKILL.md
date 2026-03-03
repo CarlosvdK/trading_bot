@@ -1,3 +1,18 @@
+---
+name: barrier-labeling
+description: Triple-barrier labeling for ML training — TP/SL/horizon labels, leak-proof vol proxy, embargo/purging. Use whenever creating ML labels, computing barriers, or working on the labeling pipeline.
+triggers:
+  - barrier label
+  - triple barrier
+  - TP/SL
+  - take profit
+  - stop loss
+  - ML label
+  - label leakage
+  - vol proxy
+priority: P1
+---
+
 # Skill: Barrier Labeling & ML Label Design
 
 ## What This Skill Is

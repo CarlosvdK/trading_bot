@@ -1,3 +1,20 @@
+---
+name: paper-broker-order-manager
+description: Order Manager + Paper Broker — order routing, rate limiting, fill simulation (slippage, partial fills), order logging, graceful shutdown. Use whenever submitting orders, simulating fills, or implementing broker integration.
+triggers:
+  - order manager
+  - paper broker
+  - fill simulation
+  - slippage
+  - partial fill
+  - order log
+  - rate limit
+  - MOC order
+  - live broker
+  - graceful shutdown
+priority: P2
+---
+
 # Skill: Paper Broker & Order Manager
 
 ## What This Skill Is

@@ -1,3 +1,8 @@
+---
+name: index
+description: Master skills index — routing table, implementation order, config template, and cross-cutting rules. Consult FIRST when unsure which skill to use.
+---
+
 # Algorithmic Trading Bot — Skills Index
 
 ## Overview

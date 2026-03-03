@@ -1,3 +1,20 @@
+---
+name: feature-engineering
+description: Leak-free feature engineering — rolling returns, vol, gap, volume surprise, cross-sectional ranks, winsorization, VIF. Use whenever building features, adding new features, or checking for feature leakage/collinearity.
+triggers:
+  - feature
+  - rolling return
+  - rolling vol
+  - volume surprise
+  - gap return
+  - z-score
+  - winsorize
+  - VIF
+  - collinearity
+  - feature builder
+priority: P1
+---
+
 # Skill: Feature Engineering for Trade Filtering
 
 ## What This Skill Is

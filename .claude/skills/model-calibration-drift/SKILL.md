@@ -1,3 +1,19 @@
+---
+name: model-calibration-drift
+description: ML model calibration (isotonic/Platt), PSI drift detection, performance monitoring, retrain triggers. Use whenever calibrating probabilities, monitoring model drift, computing PSI, or deciding when to retrain.
+triggers:
+  - calibration
+  - PSI
+  - drift
+  - Brier score
+  - retrain
+  - reliability diagram
+  - ECE
+  - model monitoring
+  - population stability
+priority: P2
+---
+
 # Skill: ML Model Calibration & Drift Monitoring
 
 ## What This Skill Is

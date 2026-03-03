@@ -1,3 +1,17 @@
+---
+name: swing-signal-generation
+description: Non-TA swing signal generation — momentum breakout, vol expansion, risk-on gate, ML filter integration. Use whenever generating trade candidates, adding new signal types, or integrating signals with the ML filter.
+triggers:
+  - swing signal
+  - momentum
+  - breakout
+  - candidate generator
+  - vol expansion
+  - risk-on gate
+  - signal pipeline
+priority: P1
+---
+
 # Skill: Swing Signal Generation (Non-TA)
 
 ## What This Skill Is

@@ -1,3 +1,21 @@
+---
+name: data-layer
+description: Data loading, OHLCV validation, corporate actions, survivorship bias, DataProvider interface. Use whenever working with CSV data, data validation, missing data, corporate actions (splits/dividends), universe files, or timestamp handling.
+triggers:
+  - CSV
+  - OHLCV
+  - data loading
+  - data validation
+  - corporate action
+  - split
+  - dividend
+  - survivorship bias
+  - universe file
+  - data provider
+  - missing data
+priority: P0
+---
+
 # Skill: Data Layer, Validation & Corporate Actions
 
 ## What This Skill Is

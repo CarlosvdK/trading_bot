@@ -1,3 +1,19 @@
+---
+name: risk-governor
+description: Risk Governor — highest-priority component. Enforces drawdown kill-switch, daily loss halt, position limits, PDT rules, exposure caps. Use whenever implementing or modifying risk checks, kill-switches, position limits, exposure controls, or PDT enforcement.
+triggers:
+  - risk limits
+  - drawdown
+  - kill-switch
+  - PDT rule
+  - exposure cap
+  - position limit
+  - max loss
+  - risk governor
+  - pre-trade check
+priority: P0
+---
+
 # Skill: Risk Governor
 
 ## What This Skill Is

@@ -1,3 +1,19 @@
+---
+name: regime-detection
+description: Market regime detection via HMM/KMeans clustering — vol/trend states, allocation mapping, persistence smoothing. Use whenever classifying market regimes, adjusting allocations by regime, or disabling sleeves in adverse conditions.
+triggers:
+  - regime
+  - HMM
+  - market state
+  - vol regime
+  - risk-on
+  - risk-off
+  - trend detection
+  - clustering
+  - allocation adjustment
+priority: P2
+---
+
 # Skill: Regime Detection
 
 ## What This Skill Is

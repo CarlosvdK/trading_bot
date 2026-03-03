@@ -1,3 +1,19 @@
+---
+name: position-sizing
+description: Volatility-targeting position sizing — vol-budget allocation, ML confidence scaling, regime adjustment, barrier computation. Use whenever sizing positions, computing trade size, or adjusting sizing by regime/confidence.
+triggers:
+  - position size
+  - vol target
+  - sizing
+  - bet size
+  - Kelly
+  - notional
+  - shares
+  - barrier width
+  - core rebalance
+priority: P1
+---
+
 # Skill: Position Sizing & Volatility Targeting
 
 ## What This Skill Is

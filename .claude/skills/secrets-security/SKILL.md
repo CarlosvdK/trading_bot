@@ -1,3 +1,20 @@
+---
+name: secrets-security
+description: Secrets management — env var loading, config validation, .gitignore, HMAC webhooks, audit logging. Use whenever handling API keys, credentials, config validation, or security hardening.
+triggers:
+  - API key
+  - secret
+  - credential
+  - .env
+  - config validation
+  - HMAC
+  - webhook signing
+  - audit log
+  - security
+  - gitignore
+priority: P0
+---
+
 # Skill: Secrets Management & Security
 
 ## What This Skill Is

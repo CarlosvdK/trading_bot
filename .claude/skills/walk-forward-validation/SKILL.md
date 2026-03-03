@@ -1,3 +1,18 @@
+---
+name: walk-forward-validation
+description: Walk-forward cross-validation for financial ML — expanding/rolling windows, embargo gaps, purging, leakage audit. Use whenever splitting train/test data, running CV, or auditing for look-ahead bias.
+triggers:
+  - walk-forward
+  - train test split
+  - cross validation
+  - embargo
+  - purging
+  - leakage audit
+  - look-ahead bias
+  - OOS evaluation
+priority: P1
+---
+
 # Skill: Walk-Forward Validation & Leakage Prevention
 
 ## What This Skill Is
