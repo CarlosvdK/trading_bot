@@ -65,6 +65,49 @@ def build_features(
     # --- Relative return (symbol vs index) ---
     if "ret_5d" in feats.columns and "index_ret_5d" in feats.columns:
         feats["rel_ret_5d"] = feats["ret_5d"] - feats["index_ret_5d"]
+    if "ret_21d" in feats.columns and "index_ret_21d" in feats.columns:
+        feats["rel_ret_21d"] = feats["ret_21d"] - feats["index_ret_21d"]
+
+    # --- RSI (14-day, backward-looking) ---
+    delta = df["close"].diff()
+    gain = delta.clip(lower=0).rolling(14).mean()
+    loss = (-delta.clip(upper=0)).rolling(14).mean()
+    rs = gain / loss.replace(0, np.nan)
+    feats["rsi_14"] = 100 - (100 / (1 + rs))
+
+    # --- MACD signal (12/26/9 EMA, backward-looking) ---
+    ema12 = df["close"].ewm(span=12, adjust=False).mean()
+    ema26 = df["close"].ewm(span=26, adjust=False).mean()
+    macd_line = ema12 - ema26
+    signal_line = macd_line.ewm(span=9, adjust=False).mean()
+    feats["macd_hist"] = (macd_line - signal_line) / df["close"]  # Normalize
+
+    # --- Bollinger %B (20-day, backward-looking) ---
+    bb_mid = df["close"].rolling(20).mean()
+    bb_std = df["close"].rolling(20).std()
+    feats["bband_pctb"] = (df["close"] - (bb_mid - 2 * bb_std)) / (
+        4 * bb_std.replace(0, np.nan)
+    )
+
+    # --- Dollar volume momentum (liquidity trend) ---
+    dv = df["close"] * df["volume"]
+    dv_5 = dv.rolling(5).mean()
+    dv_21 = dv.rolling(21).mean()
+    feats["dv_momentum"] = dv_5 / dv_21.replace(0, np.nan) - 1
+
+    # --- Average true range ratio (volatility regime) ---
+    tr = pd.concat([
+        df["high"] - df["low"],
+        (df["high"] - df["close"].shift(1)).abs(),
+        (df["low"] - df["close"].shift(1)).abs(),
+    ], axis=1).max(axis=1)
+    atr_5 = tr.rolling(5).mean()
+    atr_21 = tr.rolling(21).mean()
+    feats["atr_ratio"] = atr_5 / atr_21.replace(0, np.nan)
+
+    # --- Mean reversion signal (distance from 50-day MA) ---
+    ma50 = df["close"].rolling(50).mean()
+    feats["dist_ma50_pct"] = (df["close"] - ma50) / ma50.replace(0, np.nan)
 
     # --- Winsorize all features at 3 sigma (rolling) ---
     clip_sigma = config.get("winsorize_sigma", 3.0)

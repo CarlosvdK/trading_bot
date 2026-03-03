@@ -56,9 +56,9 @@ cost_model:
   settlement_lag_days: 2
 
 labeling:
-  k1: 2.0
+  k1: 1.0
   k2: 1.0
-  horizon_days: 10
+  horizon_days: 15
   vol_window: 21
   embargo_days: 12
   binary_labels: true
@@ -84,7 +84,7 @@ features:
   min_history_days: 63
 
 ml:
-  entry_threshold: 0.60
+  entry_threshold: 0.20
   calibration_method: "isotonic"
   min_cal_samples: 300
   drift_alert_psi: 0.20
@@ -97,7 +97,7 @@ ml:
 swing_signals:
   momentum_signal_enabled: true
   momentum_lookback_days: 5
-  momentum_threshold_pct: 0.04
+  momentum_threshold_pct: 0.03
   volume_surge_min: 1.2
   vol_expansion_signal_enabled: true
   vol_expansion_ratio: 1.5
@@ -109,16 +109,16 @@ swing_signals:
     max_vol_ratio: 1.5
 
 sizing:
-  holding_days: 10
+  holding_days: 15
   target_position_vol_pct: 0.005
   max_position_pct_swing: 0.15
   min_position_usd: 500
-  ml_entry_threshold: 0.60
+  ml_entry_threshold: 0.20
   ml_max_size_scale: 1.5
   ml_min_size_scale: 0.5
   vol_proxy_window: 21
   barriers:
-    k1: 2.0
+    k1: 1.0
     k2: 1.0
 
 regime_detection:

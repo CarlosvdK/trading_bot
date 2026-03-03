@@ -56,6 +56,12 @@ class TestBuildFeatures:
             "gap_return",
             "volume_surprise",
             "mom_consistency_10d",
+            "rsi_14",
+            "macd_hist",
+            "bband_pctb",
+            "dv_momentum",
+            "atr_ratio",
+            "dist_ma50_pct",
         ]
         for col in expected:
             assert col in feats.columns, f"Missing column: {col}"

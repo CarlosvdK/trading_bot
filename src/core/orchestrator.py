@@ -2,12 +2,12 @@
 Autonomous Orchestrator — the daily brain loop.
 
 Handles the complete lifecycle:
-  1. Fetch new data
+  1. Warm up: train ML + regime models if none exist
   2. Check drift / model health → retrain if needed
   3. Detect regime
   4. Generate signals → ML filter → size → risk check → execute
   5. Monitor open positions (barrier exits)
-  6. Log everything
+  6. Log everything & feed outcomes back for drift monitoring
   7. Adapt parameters based on feedback
 
 This is what makes the bot self-sufficient.
@@ -15,16 +15,12 @@ This is what makes the bot self-sufficient.
 
 import json
 import logging
-from datetime import date, datetime, timezone
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 import numpy as np
 import pandas as pd
 
-from src.data.provider import CSVDataProvider
-from src.data.missing import handle_missing_data
-from src.utils.config_loader import load_config
 from src.risk.risk_governor import RiskGovernor, RiskConfig, PortfolioState
 from src.ml.trainer import MLTrainer
 from src.ml.features import build_features
@@ -37,7 +33,7 @@ from src.ml.regime import (
     get_regime_allocation,
     smooth_regime,
 )
-from src.ml.drift import monitor_feature_drift, compute_live_metrics, should_retrain
+from src.ml.drift import monitor_feature_drift, compute_live_metrics
 from src.swing.signals import generate_swing_signals
 from src.swing.sizing import compute_swing_position_size, compute_barriers
 from src.utils.audit import AuditLogger
@@ -79,11 +75,13 @@ class TradingOrchestrator:
         self.regime_model = None
         self.regime_names = {}
         self.regime_series = None
+        self._regime_last_trained = None
 
         # Adaptive state
         self.performance_by_regime: Dict[str, list] = {}
         self.last_retrain_date = None
         self.last_drift_check = None
+        self._warmup_done = False
 
         # Load persisted state
         self._load_state()
@@ -93,17 +91,64 @@ class TradingOrchestrator:
 
     def _init_portfolio_state(self) -> PortfolioState:
         initial_nav = self.config.get("portfolio", {}).get("initial_nav", 100_000)
+        allocs = self.config.get("portfolio", {}).get(
+            "sleeve_allocations",
+            {"core": 0.60, "swing": 0.30, "cash_buffer": 0.10},
+        )
+        swing_alloc = allocs.get("swing", 0.30)
+        core_alloc = allocs.get("core", 0.60)
+        cash_alloc = allocs.get("cash_buffer", 0.10)
         return PortfolioState(
             nav=initial_nav,
             peak_nav=initial_nav,
-            cash=initial_nav * 0.10,
+            # Cash = swing cash (available for trading) + cash buffer
+            cash=initial_nav * (swing_alloc + cash_alloc),
             sleeve_values={
-                "swing": initial_nav * 0.30,
-                "core": initial_nav * 0.60,
+                "swing": initial_nav * swing_alloc,
+                "core": initial_nav * core_alloc,
             },
             positions={},
             day_start_nav=initial_nav,
         )
+
+    # ------------------------------------------------------------------
+    # Warm-up: train everything from scratch if no models exist
+    # ------------------------------------------------------------------
+
+    def warm_up(
+        self,
+        price_data: Dict[str, pd.DataFrame],
+        index_df: pd.DataFrame,
+        as_of_date: pd.Timestamp = None,
+    ):
+        """
+        One-time setup: train ML model and regime model if none exist.
+        Call this before the first run_daily() with all available data.
+        """
+        if self._warmup_done:
+            return
+
+        # --- Train regime model ---
+        if index_df is not None and not index_df.empty and len(index_df) > 200:
+            logger.info("Warm-up: training regime model...")
+            self._train_regime(index_df)
+
+        # --- Train ML model if none loaded ---
+        if self.ml_trainer.current_model is None:
+            logger.info("Warm-up: no ML model found, training from scratch...")
+            self._retrain(price_data, index_df, as_of_date or pd.Timestamp.today())
+        else:
+            logger.info(
+                f"Warm-up: loaded ML model v{self.ml_trainer.model_version} "
+                f"(AUC={self.ml_trainer.current_meta.get('oos_roc_auc', 'N/A')})"
+            )
+
+        self._warmup_done = True
+        self.audit.log("WARMUP_COMPLETE", {
+            "ml_model_version": self.ml_trainer.model_version,
+            "ml_model_loaded": self.ml_trainer.current_model is not None,
+            "regime_model_loaded": self.regime_model is not None,
+        })
 
     # ------------------------------------------------------------------
     # Main daily loop
@@ -126,6 +171,7 @@ class TradingOrchestrator:
             "exits": [],
             "retrained": False,
             "regime": "unknown",
+            "ml_model_active": self.ml_trainer.current_model is not None,
         }
 
         prices = {}
@@ -155,11 +201,11 @@ class TradingOrchestrator:
             self._save_state()
             return actions
 
-        # 3. Regime detection
+        # 3. Regime detection (use cached model, refresh periodically)
         regime_name = self._detect_regime(index_df, current_date)
         actions["regime"] = regime_name
 
-        # 4. Check if retrain needed
+        # 4. Check if retrain needed (time-based + drift-based + perf-based)
         if self._should_retrain(current_date, price_data, index_df):
             self._retrain(price_data, index_df, current_date)
             actions["retrained"] = True
@@ -168,7 +214,7 @@ class TradingOrchestrator:
         exits = self._check_exits(prices, current_date)
         actions["exits"] = exits
 
-        # 6. Generate new signals (if regime allows)
+        # 6. Generate new signals (if regime allows swing trading)
         alloc = get_regime_allocation(regime_name)
         if alloc["swing_enabled"]:
             signals = self._generate_signals(
@@ -177,7 +223,10 @@ class TradingOrchestrator:
             actions["signals"] = [s["symbol"] for s in signals]
             actions["trades"] = [s["symbol"] for s in signals if s.get("executed")]
 
-        # 7. Record daily state
+        # 7. Run drift monitoring (weekly)
+        self._check_drift(current_date, price_data, index_df)
+
+        # 8. Record daily state
         self.daily_nav.append({
             "date": current_date,
             "nav": self.portfolio_state.nav,
@@ -185,7 +234,7 @@ class TradingOrchestrator:
             "n_positions": len(self.open_positions),
         })
 
-        # 8. Save state
+        # 9. Save state
         self._save_state()
 
         return actions
@@ -205,6 +254,7 @@ class TradingOrchestrator:
         """Generate, filter, size, and execute swing signals."""
         swing_config = self.config.get("swing_signals", {})
         sizing_config = self.config.get("sizing", {})
+        ml_threshold = self.config.get("ml", {}).get("entry_threshold", 0.55)
 
         candidates = generate_swing_signals(
             price_data, index_df, current_date, swing_config
@@ -240,6 +290,12 @@ class TradingOrchestrator:
                 "ml_prob": ml_prob,
                 "actual_label": None,  # Filled later when position closes
             })
+
+            # Skip if ML says this trade is below threshold
+            # (Only enforce if we have a real model, not the 0.5 default)
+            if self.ml_trainer.current_model is not None and ml_prob < ml_threshold:
+                logger.debug(f"ML filter: {sym} prob={ml_prob:.3f} < {ml_threshold}")
+                continue
 
             # Size position
             swing_nav = self.portfolio_state.sleeve_values.get("swing", 30_000)
@@ -366,7 +422,7 @@ class TradingOrchestrator:
                 self.trade_log.append(trade)
                 exits.append(trade)
 
-                # Update prediction log with actual label
+                # Update prediction log with actual label (feedback loop)
                 label = 1 if pnl > 0 else 0
                 for pred in reversed(self.prediction_log):
                     if pred["symbol"] == sym and pred["actual_label"] is None:
@@ -398,6 +454,24 @@ class TradingOrchestrator:
     # Regime detection
     # ------------------------------------------------------------------
 
+    def _train_regime(self, index_df: pd.DataFrame):
+        """Train regime model from index data."""
+        if index_df.empty or len(index_df) < 100:
+            return
+
+        close = index_df["close"] if "close" in index_df.columns else index_df
+        feats = build_regime_features(close, self.config)
+        if feats.empty or len(feats) < 50:
+            return
+
+        self.regime_model = fit_regime_model(feats, n_regimes=4, method="kmeans")
+        raw = predict_regime(self.regime_model, feats)
+        self.regime_names = label_regimes(feats, raw)
+        self.regime_series = smooth_regime(raw, min_persistence=3)
+        self._regime_last_trained = feats.index[-1]
+
+        logger.info(f"Regime model trained: {self.regime_names}")
+
     def _detect_regime(
         self,
         index_df: pd.DataFrame,
@@ -410,28 +484,115 @@ class TradingOrchestrator:
         if len(idx_up_to) < 100:
             return "unknown"
 
-        feats = build_regime_features(idx_up_to["close"], self.config)
-        if feats.empty:
-            return "unknown"
+        # Refresh regime model every ~63 trading days (quarterly)
+        needs_refresh = (
+            self.regime_model is None
+            or self._regime_last_trained is None
+            or (current_date - self._regime_last_trained).days > 63
+        )
 
-        # Retrain regime model periodically
-        if self.regime_model is None or len(feats) % 63 == 0:
-            self.regime_model = fit_regime_model(feats, n_regimes=4, method="kmeans")
-            raw = predict_regime(self.regime_model, feats)
-            self.regime_names = label_regimes(feats, raw)
-            self.regime_series = smooth_regime(raw, min_persistence=3)
+        if needs_refresh:
+            self._train_regime(idx_up_to)
 
         if self.regime_series is not None and current_date in self.regime_series.index:
             regime_id = self.regime_series.loc[current_date]
             return self.regime_names.get(regime_id, "unknown")
 
-        # Predict for just today
+        # Predict for just today using latest features
         try:
+            feats = build_regime_features(idx_up_to["close"], self.config)
+            if feats.empty:
+                return "unknown"
             today_feats = feats.iloc[[-1]]
             pred = predict_regime(self.regime_model, today_feats)
             return self.regime_names.get(pred.iloc[0], "unknown")
         except Exception:
             return "unknown"
+
+    # ------------------------------------------------------------------
+    # Drift monitoring (runs weekly as part of daily loop)
+    # ------------------------------------------------------------------
+
+    def _check_drift(
+        self,
+        current_date: pd.Timestamp,
+        price_data: Dict[str, pd.DataFrame],
+        index_df: pd.DataFrame,
+    ):
+        """Weekly drift check — monitors prediction quality and feature drift."""
+        check_interval = self.config.get("ml", {}).get(
+            "retraining", {}
+        ).get("drift_check_interval_days", 7)
+
+        if (
+            self.last_drift_check is not None
+            and (current_date - self.last_drift_check).days < check_interval
+        ):
+            return  # Not time yet
+
+        self.last_drift_check = current_date
+
+        # --- Prediction quality monitoring ---
+        preds_with_labels = [
+            p for p in self.prediction_log if p["actual_label"] is not None
+        ]
+        if len(preds_with_labels) >= 20:
+            pred_df = pd.DataFrame(preds_with_labels)
+            metrics = compute_live_metrics(pred_df, lookback_days=90)
+            self.audit.log("DRIFT_CHECK", {
+                "date": str(current_date.date()),
+                "n_predictions": len(preds_with_labels),
+                "status": metrics.get("status", "unknown"),
+                "live_auc": metrics.get("live_auc"),
+                "live_brier": metrics.get("live_brier"),
+            })
+            if metrics.get("status") in ("RETRAIN_URGENT", "DISABLE_STRATEGY"):
+                logger.warning(f"Performance degraded: {metrics}")
+
+        # --- Feature drift via PSI ---
+        if (
+            self.ml_trainer.current_meta
+            and index_df is not None
+            and not index_df.empty
+        ):
+            for sym, df in list(price_data.items())[:3]:  # Check top 3 symbols
+                try:
+                    recent = df.loc[:current_date].tail(60)
+                    historical = df.loc[:current_date].tail(300)
+                    if len(recent) < 30 or len(historical) < 100:
+                        continue
+
+                    idx_recent = index_df.loc[:current_date].tail(60)
+                    idx_hist = index_df.loc[:current_date].tail(300)
+
+                    current_feats = build_features(recent, idx_recent, self.config)
+                    train_feats = build_features(historical, idx_hist, self.config)
+
+                    common_cols = [
+                        c for c in train_feats.columns if c in current_feats.columns
+                    ]
+                    if common_cols and len(current_feats) >= 10:
+                        drift = monitor_feature_drift(
+                            train_feats[common_cols],
+                            current_feats[common_cols],
+                        )
+                        if drift.get("alerts"):
+                            logger.info(
+                                f"Drift check ({sym}): "
+                                f"{len(drift['alerts'])} features drifted"
+                            )
+                        if drift.get("requires_retrain"):
+                            logger.warning(
+                                f"Feature drift detected in {sym}: {drift['alerts']}"
+                            )
+                            self.audit.log("FEATURE_DRIFT", {
+                                "date": str(current_date.date()),
+                                "symbol": sym,
+                                "drifted_features": drift["alerts"],
+                            })
+                            break  # One symbol drifting is enough signal
+                except Exception:
+                    pass
 
     # ------------------------------------------------------------------
     # Retrain logic
@@ -446,11 +607,19 @@ class TradingOrchestrator:
         """Decide if ML model needs retraining."""
         retrain_config = self.config.get("ml", {}).get("retraining", {})
         max_days = retrain_config.get("max_days_between_trains", 90)
-        check_interval = retrain_config.get("drift_check_interval_days", 7)
 
-        # Never retrained
-        if self.last_retrain_date is None:
+        # Never trained and no model loaded
+        if self.ml_trainer.current_model is None and self.last_retrain_date is None:
             return True
+
+        # Never retrained in this session
+        if self.last_retrain_date is None:
+            # We have a loaded model — check if it's stale
+            if self.ml_trainer.current_meta:
+                age = self.ml_trainer.current_meta.get("age_days", 999)
+                if age > max_days:
+                    return True
+            return False
 
         days_since = (current_date - self.last_retrain_date).days
 
@@ -458,57 +627,16 @@ class TradingOrchestrator:
         if days_since >= max_days:
             return True
 
-        # Weekly drift check
-        if (
-            self.last_drift_check is None
-            or (current_date - self.last_drift_check).days >= check_interval
-        ):
-            self.last_drift_check = current_date
-
-            # Check prediction drift
-            preds_with_labels = [
-                p for p in self.prediction_log
-                if p["actual_label"] is not None
-            ]
-            if len(preds_with_labels) >= 30:
-                pred_df = pd.DataFrame(preds_with_labels)
-                metrics = compute_live_metrics(pred_df, lookback_days=90)
-                if metrics.get("status") in ("RETRAIN_URGENT", "DISABLE_STRATEGY"):
-                    logger.warning(f"Performance degraded: {metrics}")
-                    return True
-
-            # Check feature drift
-            if self.ml_trainer.current_meta:
-                train_feats_list = self.ml_trainer.current_meta.get("feature_list", [])
-                if train_feats_list and index_df is not None and not index_df.empty:
-                    # Build current features for drift check
-                    for sym, df in list(price_data.items())[:1]:
-                        try:
-                            current_feats = build_features(
-                                df.loc[:current_date].tail(60),
-                                index_df.loc[:current_date].tail(60),
-                                self.config,
-                            )
-                            if len(current_feats) >= 10:
-                                train_feats = build_features(
-                                    df.tail(300),
-                                    index_df.tail(300),
-                                    self.config,
-                                )
-                                common_cols = [
-                                    c for c in train_feats.columns
-                                    if c in current_feats.columns
-                                ]
-                                if common_cols:
-                                    drift = monitor_feature_drift(
-                                        train_feats[common_cols],
-                                        current_feats[common_cols],
-                                    )
-                                    if drift.get("requires_retrain"):
-                                        logger.warning(f"Feature drift detected: {drift['alerts']}")
-                                        return True
-                        except Exception:
-                            pass
+        # Performance-based retrain: check recent predictions
+        preds_with_labels = [
+            p for p in self.prediction_log if p["actual_label"] is not None
+        ]
+        if len(preds_with_labels) >= 30:
+            pred_df = pd.DataFrame(preds_with_labels)
+            metrics = compute_live_metrics(pred_df, lookback_days=60)
+            if metrics.get("status") in ("RETRAIN_URGENT", "DISABLE_STRATEGY"):
+                logger.warning(f"Performance degradation triggers retrain: {metrics}")
+                return True
 
         return False
 
@@ -574,7 +702,7 @@ class TradingOrchestrator:
             "n_trades": len(self.trade_log),
             "portfolio_nav": self.portfolio_state.nav,
             "performance_by_regime": {
-                k: {"n_trades": len(v), "avg_return": np.mean(v) if v else 0}
+                k: {"n_trades": len(v), "avg_return": float(np.mean(v)) if v else 0}
                 for k, v in self.performance_by_regime.items()
             },
         }
@@ -629,7 +757,7 @@ class TradingOrchestrator:
                 summary["by_regime"][regime] = {
                     "n_trades": len(returns),
                     "win_rate": sum(1 for r in returns if r > 0) / len(returns),
-                    "avg_return": np.mean(returns),
+                    "avg_return": float(np.mean(returns)),
                     "total_return": sum(returns),
                 }
 

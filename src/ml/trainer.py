@@ -52,10 +52,10 @@ class MLTrainer:
         self.cal_method = ml_config.get("calibration_method", "isotonic")
         self.cal_fraction = ml_config.get("calibration_fraction", 0.20)
 
-        # Labeling params
+        # Labeling params — symmetric barriers (k1=k2) for balanced labels
         label_config = config.get("labeling", {})
-        self.k1 = label_config.get("k1", 2.0)
-        self.k2 = label_config.get("k2", 1.0)
+        self.k1 = label_config.get("k1", 1.5)
+        self.k2 = label_config.get("k2", 1.5)
         self.horizon = label_config.get("horizon_days", 10)
         self.vol_window = label_config.get("vol_window", 21)
 

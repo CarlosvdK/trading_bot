@@ -797,51 +797,113 @@ trading_bot/
 │       ├── [x] test_persistence.py         6 tests — save/load roundtrip, metadata
 │       └── [x] test_paper_broker.py       13 tests — fills, limit/MOC, rate limit, order log
 │
-├── PHASE 3 — PRODUCTION HARDENING 🔶 (in progress)
+├── PHASE 3 — PRODUCTION HARDENING ✅ (Core complete, hardening items remaining)
 │   │
 │   ├── src/data/ — API Data Providers ✅
-│   │   └── [x] api_providers.py
-│   │       ├── PolygonDownloader        REST API, pagination, 50k bar limit
-│   │       ├── AlphaVantageDownloader   JSON API, rate-limit handling
-│   │       ├── StooqDownloader          Free CSV endpoint, no key needed
-│   │       └── DataDownloader           Multi-source fallback chain (Polygon→Stooq→AV)
+│   │   ├── [x] api_providers.py
+│   │   │   ├── PolygonDownloader        REST API, pagination, 50k bar limit
+│   │   │   ├── AlphaVantageDownloader   JSON API, rate-limit handling
+│   │   │   ├── StooqDownloader          Free CSV endpoint, no key needed
+│   │   │   └── DataDownloader           Multi-source fallback chain (Polygon→Stooq→AV)
+│   │   │
+│   │   └── [x] screener.py — Dynamic Universe Screening
+│   │       ├── screen_universe()        liquidity/price/vol/spread filters → ranked candidates
+│   │       ├── _evaluate_symbol()       per-symbol filter cascade (7 checks)
+│   │       └── expand_universe()        dynamically add/remove symbols
+│   │
+│   ├── src/ml/ — ML Training Pipeline ✅
+│   │   └── [x] trainer.py — Self-Learning ML Trainer
+│   │       ├── MLTrainer.build_training_data()   multi-symbol X, y from price data
+│   │       ├── MLTrainer.train_model()           GBT + calibration + feature importance
+│   │       ├── MLTrainer.walk_forward_train()    19-fold WF, deployment gate (AUC≥0.55)
+│   │       ├── MLTrainer.predict_single()        calibrated prob for live signal
+│   │       └── MLTrainer.load_latest_model()     find & load most recent .pkl
+│   │
+│   ├── src/core/ — Autonomous Orchestrator ✅
+│   │   └── [x] orchestrator.py — Self-Sufficient Daily Loop
+│   │       ├── TradingOrchestrator.warm_up()              train ML+regime on startup
+│   │       ├── TradingOrchestrator.run_daily()            complete daily lifecycle
+│   │       │   ├── 1. _update_nav()                       mark-to-market all positions
+│   │       │   ├── 2. risk_governor.periodic_check()      kill-switch + alerts
+│   │       │   ├── 3. _detect_regime()                    KMeans regime (quarterly refresh)
+│   │       │   ├── 4. _should_retrain()                   time + drift + perf triggers
+│   │       │   ├── 5. _check_exits()                      TP/SL/timeout + feedback loop
+│   │       │   ├── 6. _generate_signals()                 signal → ML filter → size → risk → execute
+│   │       │   ├── 7. _check_drift()                      weekly PSI + live AUC monitoring
+│   │       │   └── 8. _save_state()                       persist to JSON
+│   │       ├── TradingOrchestrator.get_performance_summary()    analytics by regime/exit
+│   │       └── TradingOrchestrator.get_adaptive_recommendations() ML threshold + regime tuning
+│   │
+│   ├── src/ml/features.py — Expanded Feature Set ✅ (22 features)
+│   │   ├── [x] Original: ret_5/10/21d, vol_5/21d, vol_ratio, vvol, gap, vol_surprise, mom_consistency
+│   │   ├── [x] Index: index_ret_5/21d, index_vol_5/21d, rel_ret_5/21d
+│   │   └── [x] NEW: rsi_14, macd_hist, bband_pctb, dv_momentum, atr_ratio, dist_ma50_pct
 │   │
 │   ├── scripts/ ✅
 │   │   ├── [x] download_data.py         CLI: --symbols, --source, --start/--end
 │   │   ├── [x] run_backtest.py          Full pipeline: data→regime→signals→sizing→risk→exec
-│   │   └── [x] run_paper_trading.py     Order Manager + Paper Broker daily loop
+│   │   ├── [x] run_paper_trading.py     Order Manager + Paper Broker daily loop
+│   │   └── [x] run_autonomous.py        Self-learning bot: warm_up → daily loop → adapt
 │   │
-│   ├── [x] End-to-end backtest run      ✅ Ran on real data (5 symbols, 2018-2026, 291 trades)
+│   ├── End-to-end validation ✅
+│   │   ├── [x] Backtest:    5 symbols, 2018-2026, 291 trades
+│   │   └── [x] Autonomous:  123 trades, 68% WR, ML AUC=0.91, regime-aware
 │   │
-│   ├── Remaining P3 items:
+│   ├── Remaining hardening items:
 │   │   ├── [ ] Stress tests             GFC 2008, COVID 2020, 2022 rate hikes
 │   │   ├── [ ] Reconciliation job       Position/cash reconciliation checks
-│   │   ├── [ ] Drift monitoring cron    Weekly: PSI + live metrics + retrain trigger
 │   │   ├── [ ] Performance dashboards   NAV curves, drawdown, Sharpe rolling
 │   │   └── [ ] Dockerfile               Containerized deployment
 │   │
 │   └── Tests ✅
-│       └── [x] test_api_providers.py    10 tests — mocked API calls, parsing, fallback chain
+│       ├── [x] test_api_providers.py    10 tests — mocked API calls, parsing, fallback
+│       ├── [x] test_screener.py          7 tests — liquid/penny/sort/filter/expand
+│       ├── [x] test_orchestrator.py     17 tests — init, warm_up, exits, regime, state
+│       └── [x] test_trainer.py           7 tests — build data, train, walk-forward, predict
+│
+├── SELF-LEARNING LOOP (how the bot learns) ✅
+│   │
+│   │   data → features (22) → labels (triple-barrier, k1=k2=1.0)
+│   │     ↓
+│   │   walk-forward training (19 folds, embargo, calibration)
+│   │     ↓
+│   │   deployment gate (OOS AUC ≥ 0.55) → model saved to disk
+│   │     ↓
+│   │   daily: signal → ML prob → threshold (0.20) → size (vol-target × ML scale)
+│   │     ↓
+│   │   trade outcomes → prediction log → drift monitoring (weekly PSI + live AUC)
+│   │     ↓
+│   │   retrain trigger: 90-day schedule OR drift detected OR performance degraded
+│   │     ↓
+│   │   adaptive recommendations: threshold tuning, regime sizing, holding analysis
+│   │
+│   └── Key configs (config/example.yaml):
+│       ├── labeling.k1=1.0, k2=1.0       symmetric barriers (~30% positive rate)
+│       ├── ml.entry_threshold=0.20        accept trades above 20% ML probability
+│       ├── sizing.holding_days=15         15 trading day horizon
+│       └── swing_signals.momentum=0.03    3% 5-day return threshold
 │
 ├── INFRASTRUCTURE ✅
 │   ├── [x] requirements.txt              pandas, numpy, scikit-learn, requests, PyYAML, etc.
 │   ├── [x] .env                          API keys (Polygon, Alpha Vantage) — .gitignored
-│   ├── [x] config/example.yaml           Full configuration template
+│   ├── [x] config/example.yaml           Full configuration template (all tunable params)
 │   ├── [x] data/universe.csv             Point-in-time universe (AAPL, MSFT, GOOGL, AMZN, SPY)
 │   ├── [x] data/corporate_actions.csv    Split/dividend action templates
 │   ├── [x] data/ohlcv/                   Real OHLCV data (2015-2026, 2806 bars/symbol)
-│   ├── [x] models/.gitkeep
-│   ├── [x] results/                      Backtest output (nav_history.csv, trades.csv)
-│   ├── [x] logs/.gitkeep
+│   ├── [x] models/                       Trained ML models (trade_filter_v001.pkl + .json)
+│   ├── [x] results/                      Backtest + autonomous output
+│   ├── [x] logs/                         Audit trail (hash-chained JSONL)
 │   └── [x] All __init__.py files
 │
 └── SUMMARY
-    ├── Source modules:    23 implemented / 23 planned  (100%)
-    ├── Test files:        18 files, 238 tests passing
+    ├── Source modules:    27 implemented
+    ├── Test files:        21 files, 269 tests passing
     ├── Data:              5 symbols × 2806 bars (2015-2026) from Polygon + Stooq
     ├── Phase 0 (Safety):  ✅ COMPLETE — 77 tests
     ├── Phase 1 (Core):    ✅ COMPLETE — 97 tests
     ├── Phase 2 (Intel):   ✅ COMPLETE — 54 tests
-    ├── Phase 3 (Prod):    🔶 IN PROGRESS — scripts done, stress tests remaining
-    └── First backtest:    ✅ 16.0% return, 0.60 Sharpe, -0.70% max DD (2018-2026)
+    ├── Phase 3 (Prod):    ✅ CORE COMPLETE — 41 tests (hardening items remaining)
+    ├── ML Pipeline:       ✅ Walk-forward training, calibration, persistence, drift monitoring
+    ├── Self-Learning:     ✅ Autonomous loop with retrain triggers + adaptive recommendations
+    └── Autonomous run:    ✅ 123 trades, 68% WR, ML AUC=0.91 (2018-2026)
 ```

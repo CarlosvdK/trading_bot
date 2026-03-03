@@ -98,15 +98,15 @@ def main():
         config = {
             "portfolio": {"initial_nav": 100_000},
             "risk": {},
-            "ml": {"min_oos_auc_to_deploy": 0.53},
-            "swing_signals": {"momentum_threshold_pct": 0.04},
+            "ml": {"min_oos_auc_to_deploy": 0.53, "entry_threshold": 0.20},
+            "swing_signals": {"momentum_threshold_pct": 0.03},
             "sizing": {"holding_days": 10},
             "walk_forward": {
                 "initial_train_days": 504,
                 "test_days": 126,
                 "step_days": 63,
             },
-            "labeling": {"k1": 2.0, "k2": 1.0, "horizon_days": 10},
+            "labeling": {"k1": 1.5, "k2": 1.5, "horizon_days": 10},
         }
 
     # Load data
@@ -130,6 +130,10 @@ def main():
 
     # Initialize orchestrator
     orchestrator = TradingOrchestrator(config, str(ROOT))
+
+    # Warm up: train ML model + regime model from historical data
+    logger.info("Warming up: training models from historical data...")
+    orchestrator.warm_up(price_data, index_df)
 
     # Build date range
     all_dates = set()
