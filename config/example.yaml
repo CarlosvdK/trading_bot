@@ -108,6 +108,15 @@ ml:
   lookback_days: 90
   min_samples_for_eval: 30
 
+news:
+  enabled: true
+  scan_interval_days: 1
+  min_score: 0.15
+  max_signals: 30
+  include_rss: true
+  max_age_hours: 72
+  max_news_boost: 0.15
+
 swing_signals:
   momentum_signal_enabled: true
   momentum_lookback_days: 5

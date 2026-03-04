@@ -37,6 +37,7 @@ from src.ml.drift import monitor_feature_drift, compute_live_metrics
 from src.swing.signals import generate_swing_signals
 from src.swing.sizing import compute_swing_position_size, compute_barriers
 from src.utils.audit import AuditLogger
+from src.analysis.news_signals import generate_news_signals, get_news_boost
 
 logger = logging.getLogger(__name__)
 
@@ -84,6 +85,12 @@ class TradingOrchestrator:
         self.regime_names = {}
         self.regime_series = None
         self._regime_last_trained = None
+
+        # News state
+        self.news_signals: List[dict] = []
+        self.last_news_scan = None
+        self._news_enabled = config.get("news", {}).get("enabled", True)
+        self._news_scan_interval_days = config.get("news", {}).get("scan_interval_days", 1)
 
         # Adaptive state
         self.performance_by_regime: Dict[str, list] = {}
@@ -250,11 +257,15 @@ class TradingOrchestrator:
             self._retrain(price_data, index_df, current_date)
             actions["retrained"] = True
 
-        # 5. Check barrier exits on open positions
+        # 5. Refresh news signals (periodically)
+        self._refresh_news(current_date, list(price_data.keys()))
+        actions["news_signals"] = len(self.news_signals)
+
+        # 6. Check barrier exits on open positions
         exits = self._check_exits(prices, current_date)
         actions["exits"] = exits
 
-        # 6. Generate new signals (if regime allows swing trading)
+        # 7. Generate new signals (if regime allows swing trading)
         alloc = get_regime_allocation(regime_name)
         if alloc["swing_enabled"]:
             signals = self._generate_signals(
@@ -263,10 +274,10 @@ class TradingOrchestrator:
             actions["signals"] = [s["symbol"] for s in signals]
             actions["trades"] = [s["symbol"] for s in signals if s.get("executed")]
 
-        # 7. Run drift monitoring (weekly)
+        # 8. Run drift monitoring (weekly)
         self._check_drift(current_date, price_data, index_df)
 
-        # 8. Record daily state
+        # 9. Record daily state
         self.daily_nav.append({
             "date": current_date,
             "nav": self.portfolio_state.nav,
@@ -274,10 +285,55 @@ class TradingOrchestrator:
             "n_positions": len(self.open_positions),
         })
 
-        # 9. Save state
+        # 10. Save state
         self._save_state()
 
         return actions
+
+    # ------------------------------------------------------------------
+    # News scanning
+    # ------------------------------------------------------------------
+
+    def _refresh_news(self, current_date: pd.Timestamp, symbols: List[str]):
+        """Refresh news signals periodically."""
+        if not self._news_enabled:
+            return
+
+        needs_refresh = (
+            self.last_news_scan is None
+            or (current_date - self.last_news_scan).days >= self._news_scan_interval_days
+        )
+        if not needs_refresh:
+            return
+
+        try:
+            self.news_signals = generate_news_signals(
+                symbols,
+                min_score=self.config.get("news", {}).get("min_score", 0.15),
+                max_signals=self.config.get("news", {}).get("max_signals", 30),
+                include_rss=self.config.get("news", {}).get("include_rss", True),
+                max_age_hours=self.config.get("news", {}).get("max_age_hours", 72),
+            )
+            self.last_news_scan = current_date
+
+            if self.news_signals:
+                logger.info(
+                    f"News scan: {len(self.news_signals)} signals | "
+                    f"top: {self.news_signals[0]['symbol']} "
+                    f"({self.news_signals[0]['direction']}, "
+                    f"score={self.news_signals[0]['score']:+.3f})"
+                )
+                self.audit.log("NEWS_SCAN", {
+                    "date": str(current_date.date()),
+                    "n_signals": len(self.news_signals),
+                    "top_signals": [
+                        {"symbol": s["symbol"], "score": s["score"], "direction": s["direction"]}
+                        for s in self.news_signals[:5]
+                    ],
+                })
+        except Exception as e:
+            logger.warning(f"News scan failed: {e}")
+            self.news_signals = []
 
     # ------------------------------------------------------------------
     # Signal generation with ML filter
@@ -329,27 +385,36 @@ class TradingOrchestrator:
                 universe_closes=uc,
             )
 
+            # Apply news boost to ML probability
+            news_boost = get_news_boost(sym, self.news_signals)
+            adjusted_prob = max(0.0, min(1.0, ml_prob + news_boost))
+
             # Log prediction for future drift monitoring
             self.prediction_log.append({
                 "date": current_date,
                 "symbol": sym,
                 "ml_prob": ml_prob,
+                "news_boost": news_boost,
+                "adjusted_prob": adjusted_prob,
                 "actual_label": None,  # Filled later when position closes
             })
 
-            # Skip if ML says this trade is below threshold
+            # Skip if adjusted probability is below threshold
             # (Only enforce if we have a real model, not the 0.5 default)
-            if self.ml_trainer.current_model is not None and ml_prob < ml_threshold:
-                logger.debug(f"ML filter: {sym} prob={ml_prob:.3f} < {ml_threshold}")
+            if self.ml_trainer.current_model is not None and adjusted_prob < ml_threshold:
+                logger.debug(
+                    f"ML filter: {sym} prob={ml_prob:.3f} news={news_boost:+.3f} "
+                    f"adj={adjusted_prob:.3f} < {ml_threshold}"
+                )
                 continue
 
-            # Size position
+            # Size position (use adjusted prob for sizing — news conviction matters)
             swing_nav = self.portfolio_state.sleeve_values.get("swing", 30_000)
             result = compute_swing_position_size(
                 symbol=sym,
                 sleeve_nav=swing_nav,
                 instrument_vol=inst_vol,
-                ml_prob=ml_prob,
+                ml_prob=adjusted_prob,
                 current_regime=regime_name,
                 vvol_percentile=0.5,
                 price=prices[sym],
@@ -389,21 +454,27 @@ class TradingOrchestrator:
                 "tp_price": barriers["tp_price"],
                 "sl_price": barriers["sl_price"],
                 "ml_prob": ml_prob,
+                "news_boost": news_boost,
+                "adjusted_prob": adjusted_prob,
                 "regime": regime_name,
                 "notional": notional,
                 "inst_vol": inst_vol,
             }
             self.portfolio_state.positions[sym] = {"notional": notional}
 
+            news_str = f" news={news_boost:+.2f}" if news_boost != 0 else ""
             logger.info(
                 f"OPEN {sym}: {result['shares']} shares @ {prices[sym]:.2f} | "
-                f"ML={ml_prob:.2f} | TP={barriers['tp_price']:.2f} SL={barriers['sl_price']:.2f}"
+                f"ML={ml_prob:.2f}{news_str} adj={adjusted_prob:.2f} | "
+                f"TP={barriers['tp_price']:.2f} SL={barriers['sl_price']:.2f}"
             )
             self.audit.log("TRADE_OPEN", {
                 "symbol": sym,
                 "shares": result["shares"],
                 "price": prices[sym],
                 "ml_prob": ml_prob,
+                "news_boost": news_boost,
+                "adjusted_prob": adjusted_prob,
                 "regime": regime_name,
             })
 
