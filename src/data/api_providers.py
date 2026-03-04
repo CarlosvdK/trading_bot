@@ -397,7 +397,10 @@ class YFinanceDownloader:
                 for sym in batch:
                     try:
                         if len(batch) == 1:
-                            sym_df = data
+                            sym_df = data.copy()
+                            # yfinance may return MultiIndex columns for single ticker
+                            if isinstance(sym_df.columns, pd.MultiIndex):
+                                sym_df = sym_df.droplevel("Ticker", axis=1)
                         else:
                             sym_df = data[sym]
 
@@ -406,7 +409,10 @@ class YFinanceDownloader:
                             results[sym] = None
                             continue
 
-                        sym_df.columns = [c.lower() for c in sym_df.columns]
+                        sym_df.columns = [
+                            c.lower() if isinstance(c, str) else str(c).lower()
+                            for c in sym_df.columns
+                        ]
                         sym_df = sym_df[["open", "high", "low", "close", "volume"]]
                         sym_df.index.name = "date"
                         sym_df = sym_df.reset_index()

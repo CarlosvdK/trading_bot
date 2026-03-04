@@ -119,7 +119,10 @@ def main():
     screened = screen_universe(price_data)
     active_symbols = [s["symbol"] for s in screened]
     if active_symbols:
-        logger.info(f"Active universe after screening: {active_symbols}")
+        logger.info(
+            f"Screener: {len(active_symbols)}/{len(price_data)} symbols passed "
+            f"(filtered by liquidity, vol, spread)"
+        )
         price_data = {s: price_data[s] for s in active_symbols if s in price_data}
     else:
         logger.warning("No symbols passed screening — using all available")
@@ -175,6 +178,7 @@ def main():
     print(f"  AUTONOMOUS BOT RESULTS")
     print(f"{'='*60}")
     print(f"  Period:         {date_range[0].date()} → {date_range[-1].date()}")
+    print(f"  Universe:       {len(price_data)} active stocks")
     print(f"  Final NAV:      ${orchestrator.portfolio_state.nav:,.2f}")
     print(f"  Total Trades:   {summary.get('n_trades', 0)}")
     print(f"  Win Rate:       {summary.get('win_rate', 0):.1%}")
