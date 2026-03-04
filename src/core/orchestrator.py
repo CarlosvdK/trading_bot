@@ -38,6 +38,7 @@ from src.swing.signals import generate_swing_signals
 from src.swing.sizing import compute_swing_position_size, compute_barriers
 from src.utils.audit import AuditLogger
 from src.analysis.news_signals import generate_news_signals, get_news_boost
+from src.execution.order_types import Order, OrderType, OrderSide
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +49,7 @@ class TradingOrchestrator:
     Manages the full lifecycle: data → learn → predict → trade → adapt.
     """
 
-    def __init__(self, config: dict, root_dir: str):
+    def __init__(self, config: dict, root_dir: str, order_manager=None):
         self.config = config
         self.root_dir = Path(root_dir)
         self.state_file = self.root_dir / "state" / "orchestrator_state.json"
@@ -72,6 +73,10 @@ class TradingOrchestrator:
             config_with_sectors, models_dir=str(self.root_dir / "models")
         )
         self.audit = AuditLogger(str(self.root_dir / "logs" / "audit.jsonl"))
+
+        # Execution pipeline (optional — if None, uses direct position tracking)
+        self.order_manager = order_manager
+        self._order_counter = 0
 
         # State
         self.portfolio_state = self._init_portfolio_state()
@@ -424,32 +429,57 @@ class TradingOrchestrator:
             if result["shares"] <= 0:
                 continue
 
-            # Risk check
-            notional = result["shares"] * prices[sym]
-            allowed, reason = self.risk_governor.pre_trade_check(
-                symbol=sym,
-                side="BUY",
-                notional=notional,
-                sleeve="swing",
-                state=self.portfolio_state,
-                sector=cand.get("sector"),
-                current_date=current_date.date(),
-            )
-
-            if not allowed:
-                logger.info(f"Signal {sym} blocked by risk: {reason}")
-                continue
-
             # Compute barriers
+            notional = result["shares"] * prices[sym]
             barriers = compute_barriers(
                 prices[sym], inst_vol,
                 sizing_config.get("holding_days", 10),
             )
 
-            # Execute (in paper/backtest this opens position)
+            # Execute via OrderManager if available, else direct
+            fill_price = prices[sym]
+            fill_qty = result["shares"]
+
+            if self.order_manager is not None:
+                self._order_counter += 1
+                order = Order(
+                    order_id=f"orch-{self._order_counter:06d}",
+                    symbol=sym,
+                    side=OrderSide.BUY,
+                    order_type=OrderType.MARKET,
+                    qty=result["shares"],
+                    sleeve="swing",
+                    tp_price=barriers["tp_price"],
+                    sl_price=barriers["sl_price"],
+                    sector=cand.get("sector"),
+                    ml_prob=adjusted_prob,
+                    created_at=current_date,
+                )
+                fill = self.order_manager.submit(order, current_date)
+                if fill is None:
+                    continue  # Rejected by risk governor or broker
+                fill_price = fill.fill_price
+                fill_qty = fill.filled_qty
+                notional = fill_qty * fill_price
+            else:
+                # Direct mode (backtest) — do risk check ourselves
+                allowed, reason = self.risk_governor.pre_trade_check(
+                    symbol=sym,
+                    side="BUY",
+                    notional=notional,
+                    sleeve="swing",
+                    state=self.portfolio_state,
+                    sector=cand.get("sector"),
+                    current_date=current_date.date(),
+                )
+                if not allowed:
+                    logger.info(f"Signal {sym} blocked by risk: {reason}")
+                    continue
+
+            # Record position
             self.open_positions[sym] = {
-                "qty": result["shares"],
-                "entry_price": prices[sym],
+                "qty": fill_qty,
+                "entry_price": fill_price,
                 "entry_date": current_date,
                 "tp_price": barriers["tp_price"],
                 "sl_price": barriers["sl_price"],
@@ -464,14 +494,14 @@ class TradingOrchestrator:
 
             news_str = f" news={news_boost:+.2f}" if news_boost != 0 else ""
             logger.info(
-                f"OPEN {sym}: {result['shares']} shares @ {prices[sym]:.2f} | "
+                f"OPEN {sym}: {fill_qty} shares @ {fill_price:.2f} | "
                 f"ML={ml_prob:.2f}{news_str} adj={adjusted_prob:.2f} | "
                 f"TP={barriers['tp_price']:.2f} SL={barriers['sl_price']:.2f}"
             )
             self.audit.log("TRADE_OPEN", {
                 "symbol": sym,
-                "shares": result["shares"],
-                "price": prices[sym],
+                "shares": fill_qty,
+                "price": fill_price,
                 "ml_prob": ml_prob,
                 "news_boost": news_boost,
                 "adjusted_prob": adjusted_prob,
@@ -513,8 +543,30 @@ class TradingOrchestrator:
                 exit_reason = "TIMEOUT"
 
             if exit_reason:
-                pnl = (price - pos["entry_price"]) * pos["qty"]
-                pnl_pct = (price / pos["entry_price"]) - 1
+                # Route exit through OrderManager if available
+                exit_price = price
+                exit_qty = pos["qty"]
+
+                if self.order_manager is not None:
+                    self._order_counter += 1
+                    sell_order = Order(
+                        order_id=f"orch-{self._order_counter:06d}",
+                        symbol=sym,
+                        side=OrderSide.SELL,
+                        order_type=OrderType.MARKET,
+                        qty=pos["qty"],
+                        sleeve="swing",
+                        notes=exit_reason,
+                        created_at=current_date,
+                    )
+                    fill = self.order_manager.submit(sell_order, current_date)
+                    if fill is None:
+                        continue  # Broker rejected — keep position
+                    exit_price = fill.fill_price
+                    exit_qty = fill.filled_qty
+
+                pnl = (exit_price - pos["entry_price"]) * exit_qty
+                pnl_pct = (exit_price / pos["entry_price"]) - 1
 
                 logger.info(
                     f"CLOSE {sym}: {exit_reason} | PnL=${pnl:+,.2f} ({pnl_pct:+.2%}) | "
@@ -527,8 +579,8 @@ class TradingOrchestrator:
                     "entry_date": pos["entry_date"],
                     "exit_date": current_date,
                     "entry_price": pos["entry_price"],
-                    "exit_price": price,
-                    "qty": pos["qty"],
+                    "exit_price": exit_price,
+                    "qty": exit_qty,
                     "pnl": pnl,
                     "pnl_pct": pnl_pct,
                     "exit_reason": exit_reason,
