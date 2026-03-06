@@ -1,3 +1,25 @@
+# === Trading Bot Security ===
+# Secrets (NEVER commit)
+.env
+.envrc
+*.key
+*.pem
+secrets/
+credentials/
+
+# Data (may contain sensitive position info)
+data/ohlcv/
+*.sqlite
+*.db
+
+# Logs (may contain position/order details)
+logs/
+*.log
+
+# Models (large binary files)
+models/*.pkl
+
+# === Python Standard ===
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]

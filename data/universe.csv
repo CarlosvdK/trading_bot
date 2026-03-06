@@ -1,0 +1,279 @@
+symbol,active_from,active_to,notes,sector_etf
+SPY,1993-01-29,,Reference index ETF,
+XLK,1998-12-22,,Sector ETF: Information Technology,
+XLF,1998-12-22,,Sector ETF: Financials,
+XLV,1998-12-22,,Sector ETF: Health Care,
+XLE,1998-12-22,,Sector ETF: Energy,
+XLI,1998-12-22,,Sector ETF: Industrials,
+XLY,1998-12-22,,Sector ETF: Consumer Discretionary,
+XLP,1998-12-22,,Sector ETF: Consumer Staples,
+XLU,1998-12-22,,Sector ETF: Utilities,
+XLRE,2015-10-08,,Sector ETF: Real Estate,
+XLC,2018-06-18,,Sector ETF: Communication Services,
+XLB,1998-12-22,,Sector ETF: Materials,
+AAPL,2010-01-01,,S&P 500 - Information Technology,XLK
+MSFT,2010-01-01,,S&P 500 - Information Technology,XLK
+NVDA,2010-01-01,,S&P 500 - Information Technology,XLK
+AVGO,2010-01-01,,S&P 500 - Information Technology,XLK
+ORCL,2010-01-01,,S&P 500 - Information Technology,XLK
+CRM,2010-01-01,,S&P 500 - Information Technology,XLK
+CSCO,2010-01-01,,S&P 500 - Information Technology,XLK
+AMD,2010-01-01,,S&P 500 - Information Technology,XLK
+ACN,2010-01-01,,S&P 500 - Information Technology,XLK
+ADBE,2010-01-01,,S&P 500 - Information Technology,XLK
+IBM,2010-01-01,,S&P 500 - Information Technology,XLK
+TXN,2010-01-01,,S&P 500 - Information Technology,XLK
+QCOM,2010-01-01,,S&P 500 - Information Technology,XLK
+INTU,2010-01-01,,S&P 500 - Information Technology,XLK
+AMAT,2010-01-01,,S&P 500 - Information Technology,XLK
+NOW,2010-01-01,,S&P 500 - Information Technology,XLK
+PANW,2010-01-01,,S&P 500 - Information Technology,XLK
+MU,2010-01-01,,S&P 500 - Information Technology,XLK
+LRCX,2010-01-01,,S&P 500 - Information Technology,XLK
+ADI,2010-01-01,,S&P 500 - Information Technology,XLK
+KLAC,2010-01-01,,S&P 500 - Information Technology,XLK
+SNPS,2010-01-01,,S&P 500 - Information Technology,XLK
+CDNS,2010-01-01,,S&P 500 - Information Technology,XLK
+CRWD,2010-01-01,,S&P 500 - Information Technology,XLK
+MSI,2010-01-01,,S&P 500 - Information Technology,XLK
+FTNT,2010-01-01,,S&P 500 - Information Technology,XLK
+MCHP,2010-01-01,,S&P 500 - Information Technology,XLK
+APH,2010-01-01,,S&P 500 - Information Technology,XLK
+ROP,2010-01-01,,S&P 500 - Information Technology,XLK
+NXPI,2010-01-01,,S&P 500 - Information Technology,XLK
+ADSK,2010-01-01,,S&P 500 - Information Technology,XLK
+TEL,2010-01-01,,S&P 500 - Information Technology,XLK
+ON,2010-01-01,,S&P 500 - Information Technology,XLK
+CTSH,2010-01-01,,S&P 500 - Information Technology,XLK
+IT,2010-01-01,,S&P 500 - Information Technology,XLK
+MPWR,2010-01-01,,S&P 500 - Information Technology,XLK
+PLTR,2010-01-01,,S&P 500 - Information Technology,XLK
+CDW,2010-01-01,,S&P 500 - Information Technology,XLK
+FSLR,2010-01-01,,S&P 500 - Information Technology,XLK
+HPQ,2010-01-01,,S&P 500 - Information Technology,XLK
+GLW,2010-01-01,,S&P 500 - Information Technology,XLK
+NTAP,2010-01-01,,S&P 500 - Information Technology,XLK
+TYL,2010-01-01,,S&P 500 - Information Technology,XLK
+ZBRA,2010-01-01,,S&P 500 - Information Technology,XLK
+SWKS,2010-01-01,,S&P 500 - Information Technology,XLK
+EPAM,2010-01-01,,S&P 500 - Information Technology,XLK
+TRMB,2010-01-01,,S&P 500 - Information Technology,XLK
+PTC,2010-01-01,,S&P 500 - Information Technology,XLK
+VRSN,2010-01-01,,S&P 500 - Information Technology,XLK
+WDAY,2010-01-01,,S&P 500 - Information Technology,XLK
+JPM,2010-01-01,,S&P 500 - Financials,XLF
+V,2010-01-01,,S&P 500 - Financials,XLF
+MA,2010-01-01,,S&P 500 - Financials,XLF
+BAC,2010-01-01,,S&P 500 - Financials,XLF
+WFC,2010-01-01,,S&P 500 - Financials,XLF
+GS,2010-01-01,,S&P 500 - Financials,XLF
+MS,2010-01-01,,S&P 500 - Financials,XLF
+SPGI,2010-01-01,,S&P 500 - Financials,XLF
+BLK,2010-01-01,,S&P 500 - Financials,XLF
+C,2010-01-01,,S&P 500 - Financials,XLF
+AXP,2010-01-01,,S&P 500 - Financials,XLF
+SCHW,2010-01-01,,S&P 500 - Financials,XLF
+MMC,2010-01-01,,S&P 500 - Financials,XLF
+CB,2010-01-01,,S&P 500 - Financials,XLF
+PGR,2010-01-01,,S&P 500 - Financials,XLF
+ICE,2010-01-01,,S&P 500 - Financials,XLF
+AON,2010-01-01,,S&P 500 - Financials,XLF
+CME,2010-01-01,,S&P 500 - Financials,XLF
+MCO,2010-01-01,,S&P 500 - Financials,XLF
+USB,2010-01-01,,S&P 500 - Financials,XLF
+PNC,2010-01-01,,S&P 500 - Financials,XLF
+TFC,2010-01-01,,S&P 500 - Financials,XLF
+AJG,2010-01-01,,S&P 500 - Financials,XLF
+AFL,2010-01-01,,S&P 500 - Financials,XLF
+MET,2010-01-01,,S&P 500 - Financials,XLF
+TRV,2010-01-01,,S&P 500 - Financials,XLF
+AIG,2010-01-01,,S&P 500 - Financials,XLF
+ALL,2010-01-01,,S&P 500 - Financials,XLF
+BK,2010-01-01,,S&P 500 - Financials,XLF
+STT,2010-01-01,,S&P 500 - Financials,XLF
+FITB,2010-01-01,,S&P 500 - Financials,XLF
+COF,2010-01-01,,S&P 500 - Financials,XLF
+SYF,2010-01-01,,S&P 500 - Financials,XLF
+HBAN,2010-01-01,,S&P 500 - Financials,XLF
+RF,2010-01-01,,S&P 500 - Financials,XLF
+CFG,2010-01-01,,S&P 500 - Financials,XLF
+KEY,2010-01-01,,S&P 500 - Financials,XLF
+CINF,2010-01-01,,S&P 500 - Financials,XLF
+L,2010-01-01,,S&P 500 - Financials,XLF
+NTRS,2010-01-01,,S&P 500 - Financials,XLF
+UNH,2010-01-01,,S&P 500 - Health Care,XLV
+JNJ,2010-01-01,,S&P 500 - Health Care,XLV
+LLY,2010-01-01,,S&P 500 - Health Care,XLV
+ABBV,2010-01-01,,S&P 500 - Health Care,XLV
+MRK,2010-01-01,,S&P 500 - Health Care,XLV
+TMO,2010-01-01,,S&P 500 - Health Care,XLV
+ABT,2010-01-01,,S&P 500 - Health Care,XLV
+PFE,2010-01-01,,S&P 500 - Health Care,XLV
+DHR,2010-01-01,,S&P 500 - Health Care,XLV
+AMGN,2010-01-01,,S&P 500 - Health Care,XLV
+BMY,2010-01-01,,S&P 500 - Health Care,XLV
+ELV,2010-01-01,,S&P 500 - Health Care,XLV
+MDT,2010-01-01,,S&P 500 - Health Care,XLV
+ISRG,2010-01-01,,S&P 500 - Health Care,XLV
+GILD,2010-01-01,,S&P 500 - Health Care,XLV
+SYK,2010-01-01,,S&P 500 - Health Care,XLV
+CI,2010-01-01,,S&P 500 - Health Care,XLV
+VRTX,2010-01-01,,S&P 500 - Health Care,XLV
+REGN,2010-01-01,,S&P 500 - Health Care,XLV
+BSX,2010-01-01,,S&P 500 - Health Care,XLV
+ZTS,2010-01-01,,S&P 500 - Health Care,XLV
+BDX,2010-01-01,,S&P 500 - Health Care,XLV
+HUM,2010-01-01,,S&P 500 - Health Care,XLV
+EW,2010-01-01,,S&P 500 - Health Care,XLV
+HCA,2010-01-01,,S&P 500 - Health Care,XLV
+IQV,2010-01-01,,S&P 500 - Health Care,XLV
+IDXX,2010-01-01,,S&P 500 - Health Care,XLV
+A,2010-01-01,,S&P 500 - Health Care,XLV
+DXCM,2010-01-01,,S&P 500 - Health Care,XLV
+MTD,2010-01-01,,S&P 500 - Health Care,XLV
+BAX,2010-01-01,,S&P 500 - Health Care,XLV
+BIIB,2010-01-01,,S&P 500 - Health Care,XLV
+HOLX,2010-01-01,,S&P 500 - Health Care,XLV
+ALGN,2010-01-01,,S&P 500 - Health Care,XLV
+ZBH,2010-01-01,,S&P 500 - Health Care,XLV
+AMZN,2010-01-01,,S&P 500 - Consumer Discretionary,XLY
+TSLA,2010-01-01,,S&P 500 - Consumer Discretionary,XLY
+HD,2010-01-01,,S&P 500 - Consumer Discretionary,XLY
+MCD,2010-01-01,,S&P 500 - Consumer Discretionary,XLY
+LOW,2010-01-01,,S&P 500 - Consumer Discretionary,XLY
+NKE,2010-01-01,,S&P 500 - Consumer Discretionary,XLY
+SBUX,2010-01-01,,S&P 500 - Consumer Discretionary,XLY
+TJX,2010-01-01,,S&P 500 - Consumer Discretionary,XLY
+BKNG,2010-01-01,,S&P 500 - Consumer Discretionary,XLY
+CMG,2010-01-01,,S&P 500 - Consumer Discretionary,XLY
+ORLY,2010-01-01,,S&P 500 - Consumer Discretionary,XLY
+AZO,2010-01-01,,S&P 500 - Consumer Discretionary,XLY
+MAR,2010-01-01,,S&P 500 - Consumer Discretionary,XLY
+ROST,2010-01-01,,S&P 500 - Consumer Discretionary,XLY
+DHI,2010-01-01,,S&P 500 - Consumer Discretionary,XLY
+LEN,2010-01-01,,S&P 500 - Consumer Discretionary,XLY
+GM,2010-01-01,,S&P 500 - Consumer Discretionary,XLY
+F,2010-01-01,,S&P 500 - Consumer Discretionary,XLY
+YUM,2010-01-01,,S&P 500 - Consumer Discretionary,XLY
+DRI,2010-01-01,,S&P 500 - Consumer Discretionary,XLY
+EBAY,2010-01-01,,S&P 500 - Consumer Discretionary,XLY
+POOL,2010-01-01,,S&P 500 - Consumer Discretionary,XLY
+BBY,2010-01-01,,S&P 500 - Consumer Discretionary,XLY
+APTV,2010-01-01,,S&P 500 - Consumer Discretionary,XLY
+GRMN,2010-01-01,,S&P 500 - Consumer Discretionary,XLY
+CAT,2010-01-01,,S&P 500 - Industrials,XLI
+GE,2010-01-01,,S&P 500 - Industrials,XLI
+RTX,2010-01-01,,S&P 500 - Industrials,XLI
+HON,2010-01-01,,S&P 500 - Industrials,XLI
+UNP,2010-01-01,,S&P 500 - Industrials,XLI
+BA,2010-01-01,,S&P 500 - Industrials,XLI
+DE,2010-01-01,,S&P 500 - Industrials,XLI
+UPS,2010-01-01,,S&P 500 - Industrials,XLI
+LMT,2010-01-01,,S&P 500 - Industrials,XLI
+ADP,2010-01-01,,S&P 500 - Industrials,XLI
+MMM,2010-01-01,,S&P 500 - Industrials,XLI
+GD,2010-01-01,,S&P 500 - Industrials,XLI
+NOC,2010-01-01,,S&P 500 - Industrials,XLI
+CSX,2010-01-01,,S&P 500 - Industrials,XLI
+NSC,2010-01-01,,S&P 500 - Industrials,XLI
+ITW,2010-01-01,,S&P 500 - Industrials,XLI
+EMR,2010-01-01,,S&P 500 - Industrials,XLI
+WM,2010-01-01,,S&P 500 - Industrials,XLI
+ETN,2010-01-01,,S&P 500 - Industrials,XLI
+FDX,2010-01-01,,S&P 500 - Industrials,XLI
+TT,2010-01-01,,S&P 500 - Industrials,XLI
+PAYX,2010-01-01,,S&P 500 - Industrials,XLI
+FAST,2010-01-01,,S&P 500 - Industrials,XLI
+VRSK,2010-01-01,,S&P 500 - Industrials,XLI
+CTAS,2010-01-01,,S&P 500 - Industrials,XLI
+RSG,2010-01-01,,S&P 500 - Industrials,XLI
+PWR,2010-01-01,,S&P 500 - Industrials,XLI
+SWK,2010-01-01,,S&P 500 - Industrials,XLI
+ROK,2010-01-01,,S&P 500 - Industrials,XLI
+DAL,2010-01-01,,S&P 500 - Industrials,XLI
+PG,2010-01-01,,S&P 500 - Consumer Staples,XLP
+KO,2010-01-01,,S&P 500 - Consumer Staples,XLP
+PEP,2010-01-01,,S&P 500 - Consumer Staples,XLP
+COST,2010-01-01,,S&P 500 - Consumer Staples,XLP
+WMT,2010-01-01,,S&P 500 - Consumer Staples,XLP
+PM,2010-01-01,,S&P 500 - Consumer Staples,XLP
+MO,2010-01-01,,S&P 500 - Consumer Staples,XLP
+MDLZ,2010-01-01,,S&P 500 - Consumer Staples,XLP
+CL,2010-01-01,,S&P 500 - Consumer Staples,XLP
+ADM,2010-01-01,,S&P 500 - Consumer Staples,XLP
+GIS,2010-01-01,,S&P 500 - Consumer Staples,XLP
+KMB,2010-01-01,,S&P 500 - Consumer Staples,XLP
+SYY,2010-01-01,,S&P 500 - Consumer Staples,XLP
+STZ,2010-01-01,,S&P 500 - Consumer Staples,XLP
+KHC,2010-01-01,,S&P 500 - Consumer Staples,XLP
+HSY,2010-01-01,,S&P 500 - Consumer Staples,XLP
+MKC,2010-01-01,,S&P 500 - Consumer Staples,XLP
+KDP,2010-01-01,,S&P 500 - Consumer Staples,XLP
+TSN,2010-01-01,,S&P 500 - Consumer Staples,XLP
+CAG,2010-01-01,,S&P 500 - Consumer Staples,XLP
+XOM,2010-01-01,,S&P 500 - Energy,XLE
+CVX,2010-01-01,,S&P 500 - Energy,XLE
+COP,2010-01-01,,S&P 500 - Energy,XLE
+EOG,2010-01-01,,S&P 500 - Energy,XLE
+SLB,2010-01-01,,S&P 500 - Energy,XLE
+MPC,2010-01-01,,S&P 500 - Energy,XLE
+PSX,2010-01-01,,S&P 500 - Energy,XLE
+VLO,2010-01-01,,S&P 500 - Energy,XLE
+OXY,2010-01-01,,S&P 500 - Energy,XLE
+WMB,2010-01-01,,S&P 500 - Energy,XLE
+KMI,2010-01-01,,S&P 500 - Energy,XLE
+HAL,2010-01-01,,S&P 500 - Energy,XLE
+DVN,2010-01-01,,S&P 500 - Energy,XLE
+OKE,2010-01-01,,S&P 500 - Energy,XLE
+FANG,2010-01-01,,S&P 500 - Energy,XLE
+GOOGL,2010-01-01,,S&P 500 - Communication Services,XLC
+META,2010-01-01,,S&P 500 - Communication Services,XLC
+NFLX,2010-01-01,,S&P 500 - Communication Services,XLC
+DIS,2010-01-01,,S&P 500 - Communication Services,XLC
+CMCSA,2010-01-01,,S&P 500 - Communication Services,XLC
+T,2010-01-01,,S&P 500 - Communication Services,XLC
+VZ,2010-01-01,,S&P 500 - Communication Services,XLC
+TMUS,2010-01-01,,S&P 500 - Communication Services,XLC
+CHTR,2010-01-01,,S&P 500 - Communication Services,XLC
+RBLX,2010-01-01,,S&P 500 - Communication Services,XLC
+EA,2010-01-01,,S&P 500 - Communication Services,XLC
+TTWO,2010-01-01,,S&P 500 - Communication Services,XLC
+WBD,2010-01-01,,S&P 500 - Communication Services,XLC
+OMC,2010-01-01,,S&P 500 - Communication Services,XLC
+LYV,2010-01-01,,S&P 500 - Communication Services,XLC
+NEE,2010-01-01,,S&P 500 - Utilities,XLU
+DUK,2010-01-01,,S&P 500 - Utilities,XLU
+SO,2010-01-01,,S&P 500 - Utilities,XLU
+D,2010-01-01,,S&P 500 - Utilities,XLU
+AEP,2010-01-01,,S&P 500 - Utilities,XLU
+SRE,2010-01-01,,S&P 500 - Utilities,XLU
+EXC,2010-01-01,,S&P 500 - Utilities,XLU
+XEL,2010-01-01,,S&P 500 - Utilities,XLU
+ED,2010-01-01,,S&P 500 - Utilities,XLU
+WEC,2010-01-01,,S&P 500 - Utilities,XLU
+ES,2010-01-01,,S&P 500 - Utilities,XLU
+AWK,2010-01-01,,S&P 500 - Utilities,XLU
+PLD,2010-01-01,,S&P 500 - Real Estate,XLRE
+AMT,2010-01-01,,S&P 500 - Real Estate,XLRE
+CCI,2010-01-01,,S&P 500 - Real Estate,XLRE
+EQIX,2010-01-01,,S&P 500 - Real Estate,XLRE
+PSA,2010-01-01,,S&P 500 - Real Estate,XLRE
+O,2010-01-01,,S&P 500 - Real Estate,XLRE
+DLR,2010-01-01,,S&P 500 - Real Estate,XLRE
+WELL,2010-01-01,,S&P 500 - Real Estate,XLRE
+SPG,2010-01-01,,S&P 500 - Real Estate,XLRE
+AVB,2010-01-01,,S&P 500 - Real Estate,XLRE
+EQR,2010-01-01,,S&P 500 - Real Estate,XLRE
+ARE,2010-01-01,,S&P 500 - Real Estate,XLRE
+LIN,2010-01-01,,S&P 500 - Materials,XLB
+APD,2010-01-01,,S&P 500 - Materials,XLB
+SHW,2010-01-01,,S&P 500 - Materials,XLB
+FCX,2010-01-01,,S&P 500 - Materials,XLB
+ECL,2010-01-01,,S&P 500 - Materials,XLB
+NEM,2010-01-01,,S&P 500 - Materials,XLB
+DOW,2010-01-01,,S&P 500 - Materials,XLB
+NUE,2010-01-01,,S&P 500 - Materials,XLB
+VMC,2010-01-01,,S&P 500 - Materials,XLB
+MLM,2010-01-01,,S&P 500 - Materials,XLB
+PPG,2010-01-01,,S&P 500 - Materials,XLB
+DD,2010-01-01,,S&P 500 - Materials,XLB

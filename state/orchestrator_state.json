@@ -1,0 +1,22 @@
+{
+  "last_retrain_date": "2026-03-03 23:28:07.725088",
+  "last_drift_check": "2026-02-24 00:00:00",
+  "model_version": 1,
+  "open_positions": {},
+  "n_trades": 123,
+  "portfolio_nav": 9210266.7857,
+  "performance_by_regime": {
+    "unknown": {
+      "n_trades": 1,
+      "avg_return": 0.1168491517836936
+    },
+    "low_vol_choppy": {
+      "n_trades": 121,
+      "avg_return": 0.028749673473538084
+    },
+    "low_vol_trending_up": {
+      "n_trades": 1,
+      "avg_return": 0.13894651621717347
+    }
+  }
+}
