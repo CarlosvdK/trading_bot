@@ -4,23 +4,23 @@ import pytest
 from datetime import datetime, timedelta
 from unittest.mock import patch, MagicMock
 
-from src.analysis.sentiment import (
+from src.market_intel.sentiment import (
     analyze_sentiment,
     analyze_news_batch,
     aggregate_symbol_sentiment,
     detect_event_type,
 )
-from src.analysis.cross_stock import (
+from src.market_intel.cross_stock import (
     get_related_stocks,
     propagate_sentiment,
     STOCK_RELATIONSHIPS,
 )
-from src.analysis.news_signals import (
+from src.market_intel.news_signals import (
     generate_news_signals,
     build_news_features,
     get_news_boost,
 )
-from src.data.news_fetcher import match_news_to_symbols
+from src.data_feeds.news_fetcher import match_news_to_symbols
 
 
 class TestSentimentAnalysis:

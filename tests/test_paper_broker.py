@@ -7,17 +7,17 @@ import pytest
 import numpy as np
 import pandas as pd
 
-from src.execution.order_types import (
+from src.trading.order_types import (
     Order,
     Fill,
     OrderType,
     OrderSide,
     OrderStatus,
 )
-from src.execution.paper_broker import PaperBroker, LiveBrokerStub
-from src.execution.order_manager import OrderManager
-from src.backtest.cost_model import CostModel
-from src.risk.risk_governor import RiskGovernor, RiskConfig, PortfolioState
+from src.trading.paper_broker import PaperBroker, LiveBrokerStub
+from src.trading.order_manager import OrderManager
+from src.backtesting.cost_model import CostModel
+from src.risk_management.risk_governor import RiskGovernor, RiskConfig, PortfolioState
 
 
 def make_price_data(n=100) -> dict:

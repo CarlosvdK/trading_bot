@@ -41,20 +41,20 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from src.data.provider import CSVDataProvider
-from src.data.missing import handle_missing_data
-from src.data.screener import screen_universe
-from src.data.live_prices import (
+from src.data_feeds.provider import CSVDataProvider
+from src.data_feeds.missing import handle_missing_data
+from src.data_feeds.screener import screen_universe
+from src.data_feeds.live_prices import (
     update_price_data,
     get_live_quotes,
 )
-from src.utils.config_loader import load_config
-from src.risk.risk_governor import RiskGovernor, RiskConfig, PortfolioState
-from src.backtest.cost_model import CostModel
-from src.execution.paper_broker import PaperBroker
-from src.execution.order_manager import OrderManager
-from src.core.orchestrator import TradingOrchestrator
-from src.analysis.premarket import PreMarketAnalyzer, WeekendAnalyzer
+from src.utilities.config_loader import load_config
+from src.risk_management.risk_governor import RiskGovernor, RiskConfig, PortfolioState
+from src.backtesting.cost_model import CostModel
+from src.trading.paper_broker import PaperBroker
+from src.trading.order_manager import OrderManager
+from src.brain.orchestrator import TradingOrchestrator
+from src.market_intel.premarket import PreMarketAnalyzer, WeekendAnalyzer
 
 logging.basicConfig(
     level=logging.INFO,
@@ -125,7 +125,7 @@ def create_broker(broker_type: str, price_data: dict, config: dict):
         return PaperBroker(price_data, cost_model, config)
     elif broker_type == "ibkr":
         try:
-            from src.execution.ibkr_broker import IBKRBroker
+            from src.trading.ibkr_broker import IBKRBroker
             return IBKRBroker(config)
         except ImportError:
             logger.error(

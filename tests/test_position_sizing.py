@@ -6,7 +6,7 @@ Skill reference: .claude/skills/position-sizing/SKILL.md
 import pytest
 import numpy as np
 
-from src.swing.sizing import (
+from src.signals.sizing import (
     vol_target_size,
     notional_to_shares,
     ml_probability_size_scale,

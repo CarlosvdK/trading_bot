@@ -23,10 +23,10 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from src.data.news_fetcher import fetch_all_news
-from src.analysis.sentiment import analyze_news_batch, aggregate_symbol_sentiment
-from src.analysis.cross_stock import propagate_sentiment
-from src.analysis.news_signals import generate_news_signals
+from src.data_feeds.news_fetcher import fetch_all_news
+from src.market_intel.sentiment import analyze_news_batch, aggregate_symbol_sentiment
+from src.market_intel.cross_stock import propagate_sentiment
+from src.market_intel.news_signals import generate_news_signals
 
 logging.basicConfig(
     level=logging.INFO,

@@ -6,7 +6,7 @@ Skill reference: .claude/skills/backtesting-engine/SKILL.md
 import pytest
 import pandas as pd
 
-from src.backtest.portfolio import Position, SleeveAccount
+from src.backtesting.portfolio import Position, SleeveAccount
 
 
 class TestPosition:

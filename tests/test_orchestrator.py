@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 from pathlib import Path
 
-from src.core.orchestrator import TradingOrchestrator
+from src.brain.orchestrator import TradingOrchestrator
 
 
 def make_test_data(n=300):

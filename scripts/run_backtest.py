@@ -19,17 +19,17 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from src.data.provider import CSVDataProvider
-from src.data.corporate_actions import apply_corporate_actions
-from src.data.missing import handle_missing_data
-from src.utils.config_loader import load_config
-from src.risk.risk_governor import RiskGovernor, RiskConfig, PortfolioState
-from src.backtest.cost_model import CostModel
-from src.backtest.engine import Backtester
-from src.ml.features import build_features
-from src.ml.labeler import build_labels, compute_vol_proxy
-from src.ml.validation import walk_forward_splits
-from src.ml.regime import (
+from src.data_feeds.provider import CSVDataProvider
+from src.data_feeds.corporate_actions import apply_corporate_actions
+from src.data_feeds.missing import handle_missing_data
+from src.utilities.config_loader import load_config
+from src.risk_management.risk_governor import RiskGovernor, RiskConfig, PortfolioState
+from src.backtesting.cost_model import CostModel
+from src.backtesting.engine import Backtester
+from src.models.features import build_features
+from src.models.labeler import build_labels, compute_vol_proxy
+from src.models.validation import walk_forward_splits
+from src.models.regime import (
     build_regime_features,
     fit_regime_model,
     predict_regime,
@@ -37,8 +37,8 @@ from src.ml.regime import (
     get_regime_allocation,
     smooth_regime,
 )
-from src.swing.signals import generate_swing_signals
-from src.swing.sizing import compute_swing_position_size, compute_barriers
+from src.signals.signals import generate_swing_signals
+from src.signals.sizing import compute_swing_position_size, compute_barriers
 
 logging.basicConfig(
     level=logging.INFO,

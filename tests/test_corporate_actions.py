@@ -7,7 +7,7 @@ import pytest
 import pandas as pd
 import numpy as np
 
-from src.data.corporate_actions import apply_corporate_actions
+from src.data_feeds.corporate_actions import apply_corporate_actions
 
 
 def make_ohlcv_simple() -> pd.DataFrame:

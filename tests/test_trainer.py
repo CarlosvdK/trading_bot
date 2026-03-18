@@ -6,7 +6,7 @@ import pytest
 import numpy as np
 import pandas as pd
 
-from src.ml.trainer import MLTrainer
+from src.models.trainer import MLTrainer
 
 
 def make_price_data(n=500):

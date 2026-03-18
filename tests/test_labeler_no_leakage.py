@@ -7,7 +7,7 @@ import pytest
 import numpy as np
 import pandas as pd
 
-from src.ml.labeler import (
+from src.models.labeler import (
     barrier_label,
     build_labels,
     compute_vol_proxy,

@@ -7,7 +7,7 @@ import pytest
 import numpy as np
 import pandas as pd
 
-from src.ml.validation import (
+from src.models.validation import (
     walk_forward_splits,
     purge_training_labels,
     leakage_audit,

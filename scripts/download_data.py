@@ -17,7 +17,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from src.data.api_providers import (
+from src.data_feeds.api_providers import (
     DataDownloader,
     PolygonDownloader,
     AlphaVantageDownloader,

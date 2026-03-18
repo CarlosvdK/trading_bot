@@ -7,7 +7,7 @@ import pandas as pd
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
-from src.data.api_providers import (
+from src.data_feeds.api_providers import (
     PolygonDownloader,
     AlphaVantageDownloader,
     StooqDownloader,
@@ -21,7 +21,7 @@ class TestPolygonDownloader:
         assert dl.api_key == "test_key"
         assert dl.output_dir.exists()
 
-    @patch("src.data.api_providers.requests.get")
+    @patch("src.data_feeds.api_providers.requests.get")
     def test_download_symbol_parses_response(self, mock_get, tmp_path):
         mock_resp = MagicMock()
         mock_resp.status_code = 200
@@ -45,7 +45,7 @@ class TestPolygonDownloader:
         assert len(df) == 3
         assert list(df.columns) == ["date", "open", "high", "low", "close", "volume"]
 
-    @patch("src.data.api_providers.requests.get")
+    @patch("src.data_feeds.api_providers.requests.get")
     def test_empty_response_returns_none(self, mock_get, tmp_path):
         mock_resp = MagicMock()
         mock_resp.json.return_value = {"resultsCount": 0, "results": []}
@@ -62,7 +62,7 @@ class TestAlphaVantageDownloader:
         dl = AlphaVantageDownloader(str(tmp_path), api_key="test_av")
         assert dl.api_key == "test_av"
 
-    @patch("src.data.api_providers.requests.get")
+    @patch("src.data_feeds.api_providers.requests.get")
     def test_rate_limit_raises(self, mock_get, tmp_path):
         mock_resp = MagicMock()
         mock_resp.json.return_value = {"Note": "Thank you for using..."}
@@ -73,7 +73,7 @@ class TestAlphaVantageDownloader:
         with pytest.raises(RuntimeError, match="rate limit"):
             dl.download_symbol("AAPL")
 
-    @patch("src.data.api_providers.requests.get")
+    @patch("src.data_feeds.api_providers.requests.get")
     def test_error_message_raises(self, mock_get, tmp_path):
         mock_resp = MagicMock()
         mock_resp.json.return_value = {"Error Message": "Invalid symbol"}
@@ -90,7 +90,7 @@ class TestStooqDownloader:
         dl = StooqDownloader(str(tmp_path))
         assert dl.output_dir.exists()
 
-    @patch("src.data.api_providers.requests.get")
+    @patch("src.data_feeds.api_providers.requests.get")
     def test_download_parses_csv(self, mock_get, tmp_path):
         csv_content = (
             "Date,Open,High,Low,Close,Volume\n"
@@ -112,7 +112,7 @@ class TestStooqDownloader:
 
 
 class TestDataDownloader:
-    @patch("src.data.api_providers.get_secret")
+    @patch("src.data_feeds.api_providers.get_secret")
     def test_builds_source_chain(self, mock_secret, tmp_path):
         mock_secret.side_effect = lambda k, **kw: (
             "fake_polygon_key"
@@ -127,7 +127,7 @@ class TestDataDownloader:
         assert "stooq" in source_names
         assert "alphavantage" in source_names
 
-    @patch("src.data.api_providers.get_secret")
+    @patch("src.data_feeds.api_providers.get_secret")
     def test_stooq_always_present(self, mock_secret, tmp_path):
         mock_secret.return_value = None
         dl = DataDownloader(str(tmp_path))

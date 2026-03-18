@@ -6,7 +6,7 @@ Skill reference: .claude/skills/backtesting-engine/SKILL.md
 import pytest
 import numpy as np
 
-from src.backtest.cost_model import CostModel
+from src.backtesting.cost_model import CostModel
 
 
 class TestFillPrice:

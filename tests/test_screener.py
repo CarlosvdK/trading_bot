@@ -6,7 +6,7 @@ import pytest
 import numpy as np
 import pandas as pd
 
-from src.data.screener import screen_universe, expand_universe
+from src.data_feeds.screener import screen_universe, expand_universe
 
 
 def make_liquid_stock(n=300, avg_vol=2_000_000):

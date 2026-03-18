@@ -8,7 +8,7 @@ import os
 import tempfile
 import pytest
 
-from src.utils.audit import AuditLogger
+from src.utilities.audit import AuditLogger
 
 
 @pytest.fixture

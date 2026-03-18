@@ -7,8 +7,8 @@ import pytest
 import numpy as np
 import pandas as pd
 
-from src.ml.calibration import calibrate_model, reliability_diagram
-from src.ml.drift import (
+from src.models.calibration import calibrate_model, reliability_diagram
+from src.models.drift import (
     compute_psi,
     monitor_feature_drift,
     compute_live_metrics,

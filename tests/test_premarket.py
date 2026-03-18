@@ -4,7 +4,7 @@ import pytest
 from datetime import datetime, timedelta
 from unittest.mock import patch, MagicMock
 
-from src.analysis.premarket import PreMarketAnalyzer, WeekendAnalyzer
+from src.market_intel.premarket import PreMarketAnalyzer, WeekendAnalyzer
 
 
 class TestPreMarketAnalyzer:
@@ -14,7 +14,7 @@ class TestPreMarketAnalyzer:
         assert analyzer.news_history == []
         assert analyzer.overnight_catalysts == []
 
-    @patch("src.analysis.premarket.fetch_all_news")
+    @patch("src.market_intel.premarket.fetch_all_news")
     def test_scan_accumulates_news(self, mock_fetch):
         mock_fetch.return_value = [
             {
@@ -32,7 +32,7 @@ class TestPreMarketAnalyzer:
         assert analyzer.scan_count == 1
         assert len(analyzer.news_history) == 1
 
-    @patch("src.analysis.premarket.fetch_all_news")
+    @patch("src.market_intel.premarket.fetch_all_news")
     def test_scan_deduplicates(self, mock_fetch):
         """Same headline shouldn't be counted twice."""
         item = {
@@ -51,7 +51,7 @@ class TestPreMarketAnalyzer:
         assert result["new_items"] == 0
         assert len(analyzer.news_history) == 1
 
-    @patch("src.analysis.premarket.fetch_all_news")
+    @patch("src.market_intel.premarket.fetch_all_news")
     def test_scan_detects_catalysts(self, mock_fetch):
         mock_fetch.return_value = [
             {
@@ -67,7 +67,7 @@ class TestPreMarketAnalyzer:
         assert len(analyzer.overnight_catalysts) >= 1
         assert analyzer.overnight_catalysts[0]["event_type"] == "fda"
 
-    @patch("src.analysis.premarket.fetch_all_news")
+    @patch("src.market_intel.premarket.fetch_all_news")
     def test_build_playbook_empty(self, mock_fetch):
         analyzer = PreMarketAnalyzer(["AAPL"])
         playbook = analyzer.build_playbook()
@@ -76,7 +76,7 @@ class TestPreMarketAnalyzer:
         assert playbook["confidence"] == 0.0
         assert playbook["market_mood"] == "neutral"
 
-    @patch("src.analysis.premarket.fetch_all_news")
+    @patch("src.market_intel.premarket.fetch_all_news")
     def test_build_playbook_with_data(self, mock_fetch):
         now = datetime.now()
         mock_fetch.return_value = [
@@ -107,7 +107,7 @@ class TestPreMarketAnalyzer:
         assert nvda_trades[0]["direction"] == "LONG"
         assert nvda_trades[0]["conviction"] > 0
 
-    @patch("src.analysis.premarket.fetch_all_news")
+    @patch("src.market_intel.premarket.fetch_all_news")
     def test_get_news_signals_format(self, mock_fetch):
         mock_fetch.return_value = [
             {
@@ -127,7 +127,7 @@ class TestPreMarketAnalyzer:
             assert "score" in sig
             assert "magnitude" in sig
 
-    @patch("src.analysis.premarket.fetch_all_news")
+    @patch("src.market_intel.premarket.fetch_all_news")
     def test_reset(self, mock_fetch):
         mock_fetch.return_value = [
             {
@@ -146,7 +146,7 @@ class TestPreMarketAnalyzer:
         assert analyzer.scan_count == 0
         assert analyzer.overnight_catalysts == []
 
-    @patch("src.analysis.premarket.fetch_all_news")
+    @patch("src.market_intel.premarket.fetch_all_news")
     def test_multiple_scans_accumulate(self, mock_fetch):
         """Multiple scans should build up intelligence."""
         analyzer = PreMarketAnalyzer(["NVDA", "AMD"])
@@ -176,7 +176,7 @@ class TestPreMarketAnalyzer:
         assert analyzer.scan_count == 2
         assert len(analyzer.news_history) == 2
 
-    @patch("src.analysis.premarket.fetch_all_news")
+    @patch("src.market_intel.premarket.fetch_all_news")
     def test_playbook_max_trades(self, mock_fetch):
         items = [
             {
@@ -196,7 +196,7 @@ class TestPreMarketAnalyzer:
 
         assert len(playbook["trades"]) <= 5
 
-    @patch("src.analysis.premarket.fetch_all_news")
+    @patch("src.market_intel.premarket.fetch_all_news")
     def test_fetch_failure_handled(self, mock_fetch):
         mock_fetch.side_effect = Exception("Network error")
         analyzer = PreMarketAnalyzer(["AAPL"])

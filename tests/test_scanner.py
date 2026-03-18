@@ -6,7 +6,7 @@ import numpy as np
 from unittest.mock import patch, MagicMock
 from pathlib import Path
 
-from src.data.scanner import (
+from src.data_feeds.scanner import (
     get_scan_pool,
     scan_for_opportunities,
     add_to_universe,
@@ -114,7 +114,7 @@ class TestAddToUniverse:
 
         opportunities = [{"symbol": "NEW1", "reason": "volume_surge"}]
 
-        with patch("src.data.api_providers.YFinanceDownloader") as mock_dl_cls:
+        with patch("src.data_feeds.api_providers.YFinanceDownloader") as mock_dl_cls:
             mock_dl = MagicMock()
             mock_dl.download_symbol.return_value = data_dir / "NEW1.csv"
             # Create a dummy CSV so path exists

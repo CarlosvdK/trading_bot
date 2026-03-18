@@ -7,7 +7,7 @@ import pytest
 import numpy as np
 import pandas as pd
 
-from src.data.validator import validate_ohlcv, ValidationResult
+from src.data_feeds.validator import validate_ohlcv, ValidationResult
 
 
 def make_ohlcv(n=100, start="2023-01-01") -> pd.DataFrame:

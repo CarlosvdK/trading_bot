@@ -7,7 +7,7 @@ import pytest
 import numpy as np
 import pandas as pd
 
-from src.swing.signals import (
+from src.signals.signals import (
     momentum_breakout_candidates,
     volatility_expansion_candidates,
     is_risk_on,

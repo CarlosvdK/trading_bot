@@ -12,7 +12,7 @@ from pathlib import Path
 import numpy as np
 from sklearn.ensemble import GradientBoostingClassifier
 
-from src.ml.persistence import save_model, load_model_with_meta
+from src.models.persistence import save_model, load_model_with_meta
 
 
 @pytest.fixture

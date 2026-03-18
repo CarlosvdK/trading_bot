@@ -7,7 +7,7 @@ import pytest
 import numpy as np
 import pandas as pd
 
-from src.data.missing import handle_missing_data
+from src.data_feeds.missing import handle_missing_data
 
 
 def make_ohlcv_with_gaps(n=100, n_missing=3) -> pd.DataFrame:

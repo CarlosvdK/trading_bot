@@ -19,16 +19,16 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from src.data.provider import CSVDataProvider
-from src.data.missing import handle_missing_data
-from src.utils.config_loader import load_config
-from src.risk.risk_governor import RiskGovernor, RiskConfig, PortfolioState
-from src.backtest.cost_model import CostModel
-from src.execution.order_types import Order, OrderType, OrderSide
-from src.execution.paper_broker import PaperBroker
-from src.execution.order_manager import OrderManager, GracefulShutdown
-from src.ml.labeler import compute_vol_proxy
-from src.ml.regime import (
+from src.data_feeds.provider import CSVDataProvider
+from src.data_feeds.missing import handle_missing_data
+from src.utilities.config_loader import load_config
+from src.risk_management.risk_governor import RiskGovernor, RiskConfig, PortfolioState
+from src.backtesting.cost_model import CostModel
+from src.trading.order_types import Order, OrderType, OrderSide
+from src.trading.paper_broker import PaperBroker
+from src.trading.order_manager import OrderManager, GracefulShutdown
+from src.models.labeler import compute_vol_proxy
+from src.models.regime import (
     build_regime_features,
     fit_regime_model,
     predict_regime,
@@ -36,8 +36,8 @@ from src.ml.regime import (
     get_regime_allocation,
     smooth_regime,
 )
-from src.swing.signals import generate_swing_signals
-from src.swing.sizing import compute_swing_position_size, compute_barriers
+from src.signals.signals import generate_swing_signals
+from src.signals.sizing import compute_swing_position_size, compute_barriers
 
 logging.basicConfig(
     level=logging.INFO,

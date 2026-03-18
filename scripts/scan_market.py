@@ -21,7 +21,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from src.data.scanner import (
+from src.data_feeds.scanner import (
     get_scan_pool,
     scan_for_opportunities,
     add_to_universe,

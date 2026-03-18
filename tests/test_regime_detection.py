@@ -7,7 +7,7 @@ import pytest
 import numpy as np
 import pandas as pd
 
-from src.ml.regime import (
+from src.models.regime import (
     build_regime_features,
     fit_regime_model,
     predict_regime,

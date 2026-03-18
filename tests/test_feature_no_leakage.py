@@ -7,7 +7,7 @@ import pytest
 import numpy as np
 import pandas as pd
 
-from src.ml.features import build_features, winsorize_zscore
+from src.models.features import build_features, winsorize_zscore
 
 
 def make_symbol_df(n=300) -> pd.DataFrame:

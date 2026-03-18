@@ -6,7 +6,7 @@ Skill reference: .claude/skills/risk-governor/SKILL.md
 import pytest
 from datetime import date, timedelta
 
-from src.risk.risk_governor import (
+from src.risk_management.risk_governor import (
     RiskGovernor,
     RiskConfig,
     PortfolioState,

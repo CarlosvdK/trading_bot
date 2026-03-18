@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from src.ml.features import build_features
+from src.models.features import build_features
 
 
 def make_df(n=300, seed=42) -> pd.DataFrame:

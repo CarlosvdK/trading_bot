@@ -10,12 +10,12 @@ import pytest
 
 import yaml
 
-from src.utils.config_loader import (
+from src.utilities.config_loader import (
     load_config,
     _validate_no_secrets_in_config,
     _validate_risk_params,
 )
-from src.utils.secrets import get_secret
+from src.utilities.secrets import get_secret
 
 
 class TestNoSecretsInConfig:

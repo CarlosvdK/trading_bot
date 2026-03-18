@@ -28,11 +28,11 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from src.data.provider import CSVDataProvider
-from src.data.missing import handle_missing_data
-from src.data.screener import screen_universe
-from src.utils.config_loader import load_config
-from src.core.orchestrator import TradingOrchestrator
+from src.data_feeds.provider import CSVDataProvider
+from src.data_feeds.missing import handle_missing_data
+from src.data_feeds.screener import screen_universe
+from src.utilities.config_loader import load_config
+from src.brain.orchestrator import TradingOrchestrator
 
 logging.basicConfig(
     level=logging.INFO,

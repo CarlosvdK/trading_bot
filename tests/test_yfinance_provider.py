@@ -5,7 +5,7 @@ import pandas as pd
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
-from src.data.api_providers import YFinanceDownloader
+from src.data_feeds.api_providers import YFinanceDownloader
 
 
 class TestYFinanceDownloader:
