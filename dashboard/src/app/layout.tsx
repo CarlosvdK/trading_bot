@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { TopBar } from "@/components/layout/TopBar";
+import { ConnectionBanner } from "@/components/layout/ConnectionBanner";
 import "./globals.css";
 
 const inter = Inter({ variable: "--font-sans", subsets: ["latin"] });
@@ -17,6 +18,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <body className={`${inter.variable} ${jetbrainsMono.variable} font-[family-name:var(--font-sans)] antialiased`}>
         <Sidebar />
+        <ConnectionBanner />
         <TopBar />
         <main className="ml-60 mt-14 min-h-[calc(100vh-3.5rem)] bg-[var(--bg-base)] p-6">
           {children}

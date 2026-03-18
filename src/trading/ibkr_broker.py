@@ -8,12 +8,14 @@ Requirements:
 Setup:
   1. Open TWS → Edit → Global Configuration → API → Settings
   2. Enable "Enable ActiveX and Socket Clients"
-  3. Set Socket Port (default 7497 for paper, 7496 for live)
+  3. Set Socket Port (4002 for paper TWS, 4001 for live TWS,
+     7497 for paper Gateway, 7496 for live Gateway)
   4. Add 127.0.0.1 to trusted IPs
+  5. Uncheck "Read-Only API" to allow order placement
 
 Environment variables:
   IBKR_HOST (default: 127.0.0.1)
-  IBKR_PORT (default: 7497 for paper)
+  IBKR_PORT (default: 4002 for paper TWS)
   IBKR_CLIENT_ID (default: 1)
 """
 
@@ -50,14 +52,15 @@ class IBKRBroker:
 
         # Connection settings
         self.host = os.environ.get("IBKR_HOST", "127.0.0.1")
-        self.port = int(os.environ.get("IBKR_PORT", "7497"))  # 7497=paper, 7496=live
+        self.port = int(os.environ.get("IBKR_PORT", "4002"))  # 4002=paper TWS, 4001=live TWS
         self.client_id = int(os.environ.get("IBKR_CLIENT_ID", "1"))
 
-        # Safety: default to paper trading port
-        if self.port == 7496:
+        # Safety: warn on live ports
+        if self.port in (4001, 7496):
             logger.warning(
-                "WARNING: Connected to LIVE trading port (7496). "
-                "Use port 7497 for paper trading."
+                "WARNING: Connected to LIVE trading port (%d). "
+                "Use port 4002 (TWS) or 7497 (Gateway) for paper trading.",
+                self.port,
             )
 
         self._connect()
