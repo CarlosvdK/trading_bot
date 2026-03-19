@@ -254,8 +254,13 @@ class TradingOrchestrator:
             return actions
 
         # 3. Regime detection (use cached model, refresh periodically)
+        prev_regime = actions.get("regime", "unknown")
         regime_name = self._detect_regime(index_df, current_date)
         actions["regime"] = regime_name
+
+        # 3b. LLM regime narration on regime change
+        if regime_name != prev_regime and prev_regime != "unknown":
+            self._narrate_regime_change(prev_regime, regime_name, current_date, index_df)
 
         # 4. Check if retrain needed (time-based + drift-based + perf-based)
         if self._should_retrain(current_date, price_data, index_df):
@@ -336,9 +341,63 @@ class TradingOrchestrator:
                         for s in self.news_signals[:5]
                     ],
                 })
+
+                # Generate LLM theses for top news-driven candidates
+                self._generate_theses(self.news_signals[:5], current_date)
         except Exception as e:
             logger.warning(f"News scan failed: {e}")
             self.news_signals = []
+
+    # ------------------------------------------------------------------
+    # LLM Thesis Generation
+    # ------------------------------------------------------------------
+
+    def _generate_theses(self, top_signals: List[dict], current_date: pd.Timestamp):
+        """Generate investment theses for top news-driven signals."""
+        try:
+            from src.market_intel.thesis_generator import generate_thesis
+
+            for sig in top_signals:
+                thesis = generate_thesis(
+                    symbol=sig["symbol"],
+                    price_data={
+                        "lookback": 21,
+                        "price_vs_sma": 0,
+                        "rsi": 50,
+                        "vol_trend": 0,
+                        "ret_5d": sig.get("score", 0),
+                        "ret_21d": 0,
+                    },
+                    agent_signal={
+                        "direction": sig.get("direction", "long").lower(),
+                        "strategy": "news_driven",
+                        "confidence": min(1.0, abs(sig.get("score", 0)) * 2),
+                        "reasoning": sig.get("reason", ""),
+                    },
+                    sentiment_summary="; ".join(sig.get("headlines", [])[:3]),
+                    regime=sig.get("regime", "unknown"),
+                    sector=sig.get("sector", "unknown"),
+                )
+                if thesis:
+                    logger.info(
+                        f"THESIS {sig['symbol']}: "
+                        f"Bull({thesis.bull_upside_pct:+.0f}%) "
+                        f"Bear({thesis.bear_downside_pct:+.0f}%) "
+                        f"Net={thesis.net_conviction:+.2f} "
+                        f"Size={thesis.sizing_suggestion}"
+                    )
+                    self.audit.log("THESIS_GENERATED", {
+                        "date": str(current_date.date()),
+                        "symbol": sig["symbol"],
+                        "bull_summary": thesis.bull_summary,
+                        "bear_summary": thesis.bear_summary,
+                        "net_conviction": thesis.net_conviction,
+                        "sizing": thesis.sizing_suggestion,
+                        "catalysts": thesis.bull_catalysts,
+                        "risks": thesis.bear_risks,
+                    })
+        except Exception as e:
+            logger.debug(f"Thesis generation skipped: {e}")
 
     # ------------------------------------------------------------------
     # Signal generation with ML filter
@@ -677,6 +736,60 @@ class TradingOrchestrator:
             return self.regime_names.get(pred.iloc[0], "unknown")
         except Exception:
             return "unknown"
+
+    # ------------------------------------------------------------------
+    # LLM Regime Narration
+    # ------------------------------------------------------------------
+
+    def _narrate_regime_change(
+        self,
+        prev_regime: str,
+        new_regime: str,
+        current_date: pd.Timestamp,
+        index_df: pd.DataFrame,
+    ):
+        """Generate LLM narrative when regime changes."""
+        try:
+            from src.market_intel.regime_narrator import narrate_regime_change
+
+            # Build feature context for narrator
+            feats = build_regime_features(
+                index_df[index_df.index <= current_date]["close"], self.config
+            )
+            if feats.empty:
+                return
+
+            last_feats = feats.iloc[-1].to_dict()
+            alloc = get_regime_allocation(new_regime)
+
+            narrative = narrate_regime_change(
+                prev_regime=prev_regime,
+                new_regime=new_regime,
+                date=str(current_date.date()),
+                regime_features=last_feats,
+                swing_mult=alloc.get("swing_multiplier", 1.0),
+                swing_enabled=alloc.get("swing_enabled", True),
+            )
+
+            logger.info(
+                f"REGIME CHANGE: {prev_regime} -> {new_regime}\n"
+                f"  Narrative: {narrative.narrative}\n"
+                f"  Actions: {', '.join(narrative.action_items)}"
+            )
+
+            self.audit.log("REGIME_CHANGE_NARRATED", {
+                "date": str(current_date.date()),
+                "prev_regime": prev_regime,
+                "new_regime": new_regime,
+                "narrative": narrative.narrative,
+                "drivers": narrative.likely_drivers,
+                "actions": narrative.action_items,
+                "risk_watchlist": narrative.risk_watchlist,
+                "opportunity_sectors": narrative.opportunity_sectors,
+                "avoid_sectors": narrative.avoid_sectors,
+            })
+        except Exception as e:
+            logger.debug(f"Regime narration skipped: {e}")
 
     # ------------------------------------------------------------------
     # Drift monitoring (runs weekly as part of daily loop)

@@ -34,7 +34,19 @@ async def portfolio_summary(ibkr=Depends(get_ibkr), repo=Depends(get_repo)):
             history = repo.get_portfolio_history(days=1)
             if history:
                 snap = history[-1]
-                return {**snap, "source": "supabase_snapshot"}
+                return {
+                    "totalValue": snap.get("total_value", 0),
+                    "cashBalance": snap.get("cash_balance", 0),
+                    "unrealizedPnl": snap.get("unrealized_pnl", 0),
+                    "realizedPnl": snap.get("realized_pnl", 0),
+                    "dailyPnl": snap.get("daily_pnl", 0),
+                    "grossExposure": snap.get("gross_exposure", 0),
+                    "netExposure": snap.get("net_exposure", 0),
+                    "openPositions": snap.get("open_positions", 0),
+                    "drawdown": snap.get("drawdown", 0),
+                    "regime": snap.get("regime", ""),
+                    "source": "supabase_snapshot",
+                }
         except Exception:
             pass
 

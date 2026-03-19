@@ -165,6 +165,11 @@ class TradingPipeline:
             return []
 
         # ============================================== #
+        #  LLM Reasoning Audit (between C and D)        #
+        # ============================================== #
+        global_approved = self._llm_audit(global_approved, regime)
+
+        # ============================================== #
         #  Vehicle Selection                             #
         # ============================================== #
         for proposal in global_approved:
@@ -453,6 +458,67 @@ class TradingPipeline:
                 approved.append(best)
 
         return approved
+
+    # ================================================================== #
+    #  LLM Reasoning Audit                                                 #
+    # ================================================================== #
+
+    def _llm_audit(
+        self,
+        proposals: List[Proposal],
+        regime: str,
+    ) -> List[Proposal]:
+        """Run LLM reasoning audit on approved proposals, adjust confidence."""
+        try:
+            from src.agents.reasoning_auditor import audit_decision
+        except ImportError:
+            return proposals
+
+        audited = []
+        for proposal in proposals:
+            try:
+                # Collect supporting reasons from all agents that proposed this symbol
+                supporting_reasons = [proposal.reasoning] if hasattr(proposal, 'reasoning') else []
+                strategies = [proposal.strategy_used] if hasattr(proposal, 'strategy_used') else []
+
+                result = audit_decision(
+                    symbol=proposal.symbol,
+                    direction=proposal.direction,
+                    approval_pct=getattr(proposal, 'global_approval_pct', 0.5),
+                    confidence=getattr(proposal, 'global_weighted_confidence', proposal.confidence),
+                    supporting_reasons=supporting_reasons,
+                    n_dissent=0,
+                    strategies=strategies,
+                    regime=regime,
+                    sector=getattr(proposal, 'sector', 'unknown'),
+                )
+
+                # Apply confidence adjustment from audit
+                if hasattr(proposal, 'global_weighted_confidence'):
+                    proposal.global_weighted_confidence = max(
+                        0.0,
+                        min(1.0, proposal.global_weighted_confidence + result.confidence_adjustment)
+                    )
+
+                # Store audit result on proposal for logging
+                proposal.audit_quality = result.quality_score
+                proposal.audit_note = result.review_note
+
+                # Reject if auditor says reject and quality is very low
+                if result.recommendation == "reject" and result.quality_score < 0.3:
+                    logger.info(
+                        f"LLM audit rejected {proposal.symbol}: {result.review_note}"
+                    )
+                    continue
+
+                audited.append(proposal)
+
+            except Exception as e:
+                logger.debug(f"LLM audit skipped for {proposal.symbol}: {e}")
+                audited.append(proposal)  # Pass through on error
+
+        logger.info(f"LLM Audit: {len(audited)}/{len(proposals)} passed reasoning review")
+        return audited
 
     # ================================================================== #
     #  STAGE D: Portfolio/Risk Layer                                       #

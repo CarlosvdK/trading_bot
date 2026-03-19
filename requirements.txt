@@ -16,6 +16,9 @@ feedparser>=6.0.0,<7.0.0
 # NLP / sentiment
 vaderSentiment>=3.3.2,<4.0.0
 
+# LLM-enhanced analysis (optional — features degrade gracefully without it)
+anthropic>=0.40.0,<1.0.0
+
 # Optional: regime detection
 hmmlearn>=0.3.0,<1.0.0
 

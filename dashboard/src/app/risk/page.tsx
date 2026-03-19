@@ -1,20 +1,12 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import {
   ShieldAlert,
-  Activity,
-  TrendingDown,
-  DollarSign,
-  BarChart3,
-  GitBranch,
-  Layers,
   Wifi,
   WifiOff,
   AlertTriangle,
-  XOctagon,
-  CheckCircle2,
-  Ban,
+  Loader2,
 } from "lucide-react";
 import { MetricCard } from "@/components/shared/MetricCard";
 import { Badge } from "@/components/shared/Badge";
@@ -23,14 +15,15 @@ import { KillSwitch } from "@/components/risk/KillSwitch";
 import { AlertPanel } from "@/components/risk/AlertPanel";
 import { ControlPanel } from "@/components/risk/ControlPanel";
 import {
-  mockRiskSummary,
-  mockAlerts,
-  mockControlState,
-  mockRegimeInfo,
-  mockAgentHealth,
-  mockPositionRisks,
-  mockExecutionHealth,
-} from "@/data/mock/risk";
+  fetchRiskSummary,
+  fetchAlerts,
+  fetchControls,
+  fetchRegime,
+  fetchAgents,
+  fetchHealth,
+  toggleKillSwitch,
+} from "@/lib/api";
+import { useApi } from "@/hooks/useApi";
 import {
   formatCurrency,
   formatPct,
@@ -39,7 +32,6 @@ import {
 } from "@/lib/utils";
 import type { ControlState, AgentStatus } from "@/types";
 
-// --- Agent status config ---
 const agentStatusConfig: Record<AgentStatus, { color: string; badgeVariant: "success" | "warning" | "danger" | "neutral" }> = {
   healthy: { color: "text-[var(--positive)]", badgeVariant: "success" },
   warning: { color: "text-[var(--warning)]", badgeVariant: "warning" },
@@ -47,7 +39,6 @@ const agentStatusConfig: Record<AgentStatus, { color: string; badgeVariant: "suc
   replace: { color: "text-[var(--critical)]", badgeVariant: "danger" },
 };
 
-// --- Risk score color ---
 function getRiskScoreColor(score: number): string {
   if (score >= 7) return "text-[#DC2626]";
   if (score >= 5) return "text-[#F59E0B]";
@@ -61,51 +52,113 @@ function getRiskScoreBg(score: number): string {
 }
 
 export default function RiskPage() {
-  const [killSwitchActive, setKillSwitchActive] = useState(mockRiskSummary.killSwitchActive);
-  const [controlState, setControlState] = useState<ControlState>(mockControlState);
+  const { data: riskSummary, loading: loadingRisk, refresh: refreshRisk } = useApi(fetchRiskSummary, 10000);
+  const { data: alerts, refresh: refreshAlerts } = useApi(fetchAlerts, 10000);
+  const { data: controls } = useApi(fetchControls, 10000);
+  const { data: regime } = useApi(fetchRegime, 30000);
+  const { data: agents } = useApi(fetchAgents, 30000);
+  const { data: health } = useApi(fetchHealth, 5000);
+
+  const risk = riskSummary || {
+    currentDrawdown: 0, maxDrawdownLimit: 0.15,
+    dailyLoss: 0, dailyLossLimit: 0.03,
+    grossExposure: 0, grossExposureLimit: 1.0,
+    netExposure: 0, leverage: 1.0,
+    concentrationRisk: 0, correlationRisk: 0,
+    liquidityRisk: 0, regimeMismatch: false,
+    killSwitchActive: false, killSwitchReason: "",
+  };
+
+  const [controlState, setControlState] = useState<ControlState>({
+    tradingPaused: false,
+    entriesPaused: false,
+    exitsOnly: false,
+    riskOffMode: false,
+    manualApprovalMode: false,
+    manualOnlyMode: false,
+    maxPositionSizePct: 5,
+    maxExposurePct: 100,
+    disabledGroups: [],
+    disabledAgents: [],
+  });
   const [disabledAgents, setDisabledAgents] = useState<Set<string>>(new Set());
+
+  const killSwitchActive = risk.killSwitchActive || controls?.killSwitchActive || false;
 
   const handleControlChange = useCallback((key: string, value: boolean | number) => {
     setControlState((prev) => ({ ...prev, [key]: value }));
   }, []);
 
-  const handleKillActivate = useCallback(() => {
-    setKillSwitchActive(true);
-    setControlState((prev) => ({ ...prev, tradingPaused: true }));
-  }, []);
+  const handleKillActivate = useCallback(async () => {
+    await toggleKillSwitch(true);
+    refreshRisk();
+  }, [refreshRisk]);
 
-  const handleKillDeactivate = useCallback(() => {
-    setKillSwitchActive(false);
-  }, []);
+  const handleKillDeactivate = useCallback(async () => {
+    await toggleKillSwitch(false);
+    refreshRisk();
+  }, [refreshRisk]);
 
   const handleDisableAgent = useCallback((agentId: string) => {
     setDisabledAgents((prev) => {
       const next = new Set(prev);
-      if (next.has(agentId)) {
-        next.delete(agentId);
-      } else {
-        next.add(agentId);
-      }
+      if (next.has(agentId)) next.delete(agentId);
+      else next.add(agentId);
       return next;
     });
   }, []);
 
-  // Compute alert counts
-  const criticalCount = mockAlerts.filter((a) => a.severity === "critical" && !a.acknowledged).length;
-  const totalUnack = mockAlerts.filter((a) => !a.acknowledged).length;
+  // Alerts from API
+  const alertList = Array.isArray(alerts) ? alerts.map((a: any, i: number) => ({
+    id: String(a.id || i),
+    severity: a.severity || "info",
+    category: a.event_type || "",
+    title: a.event_type || "Risk Event",
+    message: a.message || "",
+    timestamp: a.created_at || "",
+    acknowledged: a.resolved || false,
+    relatedSymbol: a.symbol || "",
+    relatedAgent: a.agent_id || "",
+  })) : [];
 
-  // Agent health stats
-  const healthyAgents = mockAgentHealth.filter((a) => a.status === "healthy").length;
-  const warningAgents = mockAgentHealth.filter((a) => a.status === "warning").length;
-  const underperformingAgents = mockAgentHealth.filter((a) => a.status === "underperforming").length;
-  const replaceAgents = mockAgentHealth.filter((a) => a.status === "replace").length;
-  const flaggedAgents = mockAgentHealth.filter((a) => a.status !== "healthy");
+  const criticalCount = alertList.filter((a) => a.severity === "critical" && !a.acknowledged).length;
+  const totalUnack = alertList.filter((a) => !a.acknowledged).length;
+
+  // Agent health from real agents
+  const agentHealthList = useMemo(() => {
+    if (!agents) return [];
+    return agents.map((a: any) => ({
+      agentId: a.agentId,
+      status: (a.score?.status || "healthy") as AgentStatus,
+      reason: "",
+      compositeWeight: a.score?.compositeWeight || 1,
+      regimeMismatch: false,
+      isRedundant: false,
+      daysSinceLastCorrect: null as number | null,
+    }));
+  }, [agents]);
+
+  const healthyAgents = agentHealthList.filter((a) => a.status === "healthy").length;
+  const warningAgents = agentHealthList.filter((a) => a.status === "warning").length;
+  const underperformingAgents = agentHealthList.filter((a) => a.status === "underperforming").length;
+  const replaceAgents = agentHealthList.filter((a) => a.status === "replace").length;
+  const flaggedAgents = agentHealthList.filter((a) => a.status !== "healthy");
+
+  const ibkrConnected = health?.ibkr_connected || health?.ibkrConnected || false;
+  const regimeLabel = regime?.regime?.replace(/_/g, " ") || "unknown";
+
+  if (loadingRisk) {
+    return (
+      <div className="flex h-96 items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
+        <span className="ml-3 text-sm text-slate-400">Loading risk data...</span>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
-      {/* ================================================================ */}
-      {/* 1. PAGE HEADER WITH STATUS STRIP */}
-      {/* ================================================================ */}
+      {/* 1. PAGE HEADER */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
@@ -115,7 +168,6 @@ export default function RiskPage() {
             </h1>
           </div>
 
-          {/* Kill switch status */}
           <div className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ${
             killSwitchActive
               ? "bg-red-50 text-red-600 border border-red-200"
@@ -127,13 +179,11 @@ export default function RiskPage() {
             {killSwitchActive ? "KILLED" : "ACTIVE"}
           </div>
 
-          {/* Regime badge */}
           <Badge variant="info" size="md">
-            {mockRegimeInfo.current}
+            {regimeLabel}
           </Badge>
         </div>
 
-        {/* Alert count */}
         <div className="flex items-center gap-2">
           {criticalCount > 0 && (
             <div className="flex items-center gap-1.5 rounded-full bg-red-50 border border-red-200 px-3 py-1 text-xs font-semibold text-red-600">
@@ -149,210 +199,105 @@ export default function RiskPage() {
         </div>
       </div>
 
-      {/* ================================================================ */}
       {/* 2. RISK SUMMARY CARDS */}
-      {/* ================================================================ */}
       <div className="grid grid-cols-6 gap-3">
-        {/* Current Drawdown */}
         <div className="rounded-xl border border-[var(--border)] bg-white px-4 py-3 shadow-sm">
-          <div className="text-[10px] font-medium uppercase tracking-wider text-[var(--text-muted)]">
-            Current Drawdown
-          </div>
+          <div className="text-[10px] font-medium uppercase tracking-wider text-[var(--text-muted)]">Current Drawdown</div>
           <div className={`mt-1 text-xl font-bold ${
-            mockRiskSummary.currentDrawdown > 0.05 ? "text-[#DC2626]" :
-            mockRiskSummary.currentDrawdown > 0.03 ? "text-[#F59E0B]" :
+            risk.currentDrawdown > 0.05 ? "text-[#DC2626]" :
+            risk.currentDrawdown > 0.03 ? "text-[#F59E0B]" :
             "text-[var(--text-primary)]"
           }`}>
-            {(mockRiskSummary.currentDrawdown * 100).toFixed(1)}%
+            {(risk.currentDrawdown * 100).toFixed(1)}%
           </div>
           <ProgressBar
-            value={mockRiskSummary.currentDrawdown * 100}
-            max={mockRiskSummary.maxDrawdownLimit * 100}
+            value={risk.currentDrawdown * 100}
+            max={risk.maxDrawdownLimit * 100}
             warningThreshold={50}
             dangerThreshold={80}
             className="mt-2"
           />
           <div className="mt-1 text-[10px] text-[var(--text-muted)]">
-            Limit: {(mockRiskSummary.maxDrawdownLimit * 100).toFixed(0)}%
+            Limit: {(risk.maxDrawdownLimit * 100).toFixed(0)}%
           </div>
         </div>
 
-        {/* Daily PnL */}
         <div className="rounded-xl border border-[var(--border)] bg-white px-4 py-3 shadow-sm">
-          <div className="text-[10px] font-medium uppercase tracking-wider text-[var(--text-muted)]">
-            Daily PnL
-          </div>
-          <div className={`mt-1 text-xl font-bold ${getPnlColor(mockRiskSummary.dailyLoss)}`}>
-            {formatCurrency(mockRiskSummary.dailyLoss)}
+          <div className="text-[10px] font-medium uppercase tracking-wider text-[var(--text-muted)]">Daily PnL</div>
+          <div className={`mt-1 text-xl font-bold ${getPnlColor(risk.dailyLoss)}`}>
+            {formatCurrency(risk.dailyLoss)}
           </div>
           <div className="mt-1 text-[10px] text-[var(--text-muted)]">
-            Limit: {formatCurrency(-mockRiskSummary.dailyLossLimit)}
+            Limit: {formatCurrency(-risk.dailyLossLimit)}
           </div>
         </div>
 
-        {/* Gross Exposure */}
         <div className="rounded-xl border border-[var(--border)] bg-white px-4 py-3 shadow-sm">
-          <div className="text-[10px] font-medium uppercase tracking-wider text-[var(--text-muted)]">
-            Gross Exposure
-          </div>
+          <div className="text-[10px] font-medium uppercase tracking-wider text-[var(--text-muted)]">Gross Exposure</div>
           <div className="mt-1 text-xl font-bold text-[var(--text-primary)]">
-            {(mockRiskSummary.grossExposure * 100).toFixed(0)}%
+            {(risk.grossExposure * 100).toFixed(0)}%
           </div>
           <ProgressBar
-            value={mockRiskSummary.grossExposure * 100}
-            max={mockRiskSummary.grossExposureLimit * 100}
+            value={risk.grossExposure * 100}
+            max={risk.grossExposureLimit * 100}
             warningThreshold={60}
             dangerThreshold={85}
             className="mt-2"
           />
           <div className="mt-1 text-[10px] text-[var(--text-muted)]">
-            Limit: {(mockRiskSummary.grossExposureLimit * 100).toFixed(0)}%
+            Limit: {(risk.grossExposureLimit * 100).toFixed(0)}%
           </div>
         </div>
 
-        {/* Net Exposure */}
         <MetricCard
           label="Net Exposure"
-          value={`${(mockRiskSummary.netExposure * 100).toFixed(0)}%`}
-          subValue={`Leverage: ${mockRiskSummary.leverage.toFixed(2)}x`}
+          value={`${(risk.netExposure * 100).toFixed(0)}%`}
+          subValue={`Leverage: ${risk.leverage.toFixed(2)}x`}
           trend="neutral"
         />
 
-        {/* Concentration */}
         <MetricCard
           label="Concentration"
-          value={`${(mockRiskSummary.concentrationRisk * 100).toFixed(0)}%`}
+          value={`${(risk.concentrationRisk * 100).toFixed(0)}%`}
           subValue="Top position %"
-          trend={mockRiskSummary.concentrationRisk > 0.15 ? "down" : "neutral"}
+          trend={risk.concentrationRisk > 0.15 ? "down" : "neutral"}
         />
 
-        {/* Correlation Risk */}
         <div className="rounded-xl border border-[var(--border)] bg-white px-4 py-3 shadow-sm">
-          <div className="text-[10px] font-medium uppercase tracking-wider text-[var(--text-muted)]">
-            Correlation Risk
-          </div>
+          <div className="text-[10px] font-medium uppercase tracking-wider text-[var(--text-muted)]">Correlation Risk</div>
           <div className={`mt-1 text-xl font-bold ${
-            mockRiskSummary.correlationRisk > 0.7 ? "text-[#DC2626]" :
-            mockRiskSummary.correlationRisk > 0.5 ? "text-[#F59E0B]" :
+            risk.correlationRisk > 0.7 ? "text-[#DC2626]" :
+            risk.correlationRisk > 0.5 ? "text-[#F59E0B]" :
             "text-[var(--positive)]"
           }`}>
-            {mockRiskSummary.correlationRisk.toFixed(2)}
+            {risk.correlationRisk.toFixed(2)}
           </div>
           <div className="mt-1 text-[10px] text-[var(--text-muted)]">
-            {mockRiskSummary.correlationRisk > 0.7 ? "Severely correlated" :
-             mockRiskSummary.correlationRisk > 0.5 ? "Moderately correlated" :
+            {risk.correlationRisk > 0.7 ? "Severely correlated" :
+             risk.correlationRisk > 0.5 ? "Moderately correlated" :
              "Well diversified"}
           </div>
         </div>
       </div>
 
-      {/* ================================================================ */}
       {/* 3 & 4. ALERTS + CONTROL PANEL */}
-      {/* ================================================================ */}
       <div className="grid grid-cols-3 gap-4" style={{ minHeight: 420 }}>
         <div className="col-span-2">
-          <AlertPanel alerts={mockAlerts} />
+          <AlertPanel alerts={alertList} />
         </div>
         <div className="col-span-1">
           <ControlPanel state={controlState} onChange={handleControlChange} />
         </div>
       </div>
 
-      {/* ================================================================ */}
       {/* 5. KILL SWITCH */}
-      {/* ================================================================ */}
       <KillSwitch
         active={killSwitchActive}
         onActivate={handleKillActivate}
         onDeactivate={handleKillDeactivate}
       />
 
-      {/* ================================================================ */}
-      {/* 6. POSITION RISK TABLE */}
-      {/* ================================================================ */}
-      <div className="rounded-xl border border-[var(--border)] bg-white shadow-sm">
-        <div className="border-b border-[var(--border)] px-4 py-3">
-          <h3 className="text-sm font-semibold text-[var(--text-primary)]">Position Risk</h3>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="border-b border-[var(--border)] bg-slate-50">
-                <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">Symbol</th>
-                <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">Direction</th>
-                <th className="px-3 py-2.5 text-right text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">Size</th>
-                <th className="px-3 py-2.5 text-right text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">PnL%</th>
-                <th className="px-3 py-2.5 text-right text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">Dist to Stop</th>
-                <th className="px-3 py-2.5 text-center text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">Risk Score</th>
-                <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">Sector</th>
-                <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">Flags</th>
-              </tr>
-            </thead>
-            <tbody>
-              {[...mockPositionRisks]
-                .sort((a, b) => b.riskScore - a.riskScore)
-                .map((pos) => (
-                  <tr
-                    key={pos.symbol}
-                    className="border-b border-slate-100 transition-colors hover:bg-slate-50"
-                  >
-                    <td className="px-4 py-2.5">
-                      <span className="font-semibold text-[var(--text-primary)]">{pos.symbol}</span>
-                    </td>
-                    <td className="px-3 py-2.5">
-                      <Badge
-                        variant={pos.direction === "long" ? "success" : "danger"}
-                        size="sm"
-                      >
-                        {pos.direction.toUpperCase()}
-                      </Badge>
-                    </td>
-                    <td className="px-3 py-2.5 text-right tabular-nums text-[var(--text-secondary)]">
-                      {formatPct(pos.sizePct)}
-                    </td>
-                    <td className={`px-3 py-2.5 text-right tabular-nums font-medium ${getPnlColor(pos.pnlPct)}`}>
-                      {formatPct(pos.pnlPct)}
-                    </td>
-                    <td className={`px-3 py-2.5 text-right tabular-nums font-medium ${
-                      pos.distanceToStop < 0.02 ? "text-[#DC2626]" :
-                      pos.distanceToStop < 0.04 ? "text-[#F59E0B]" :
-                      "text-[var(--text-secondary)]"
-                    }`}>
-                      {formatPct(pos.distanceToStop)}
-                    </td>
-                    <td className="px-3 py-2.5 text-center">
-                      <span className={`inline-flex items-center justify-center rounded px-2 py-0.5 font-mono font-bold ${getRiskScoreColor(pos.riskScore)} ${getRiskScoreBg(pos.riskScore)}`}>
-                        {pos.riskScore.toFixed(1)}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2.5 text-[var(--text-muted)]">{pos.sector}</td>
-                    <td className="px-3 py-2.5">
-                      <div className="flex flex-wrap gap-1">
-                        {pos.flags.map((flag) => (
-                          <Badge
-                            key={flag}
-                            variant={
-                              flag.includes("Stop") || flag.includes("Short") ? "danger" :
-                              flag.includes("Mismatch") || flag.includes("Low") ? "warning" :
-                              "neutral"
-                            }
-                            size="sm"
-                          >
-                            {flag}
-                          </Badge>
-                        ))}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* ================================================================ */}
-      {/* 7 & 8. AGENT HEALTH + EXECUTION HEALTH */}
-      {/* ================================================================ */}
+      {/* 6 & 7. AGENT HEALTH + EXECUTION HEALTH */}
       <div className="grid grid-cols-2 gap-4">
         {/* Agent Health */}
         <div className="rounded-xl border border-[var(--border)] bg-white shadow-sm">
@@ -405,14 +350,8 @@ export default function RiskPage() {
                         <Badge variant="neutral" size="sm">Redundant</Badge>
                       )}
                     </div>
-                    <p className="mt-0.5 text-[10px] text-[var(--text-muted)]">
-                      {agent.reason}
-                    </p>
                     <p className="text-[10px] text-[var(--text-muted)]">
                       Weight: {(agent.compositeWeight * 100).toFixed(0)}%
-                      {agent.daysSinceLastCorrect != null && (
-                        <> &middot; {agent.daysSinceLastCorrect}d since last correct</>
-                      )}
                     </p>
                   </div>
                   <button
@@ -443,93 +382,76 @@ export default function RiskPage() {
           </div>
 
           <div className="p-4 space-y-4">
-            {/* Broker Connection */}
             <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
               <div className="flex items-center gap-3">
-                {mockExecutionHealth.brokerConnected ? (
+                {ibkrConnected ? (
                   <Wifi size={18} className="text-[var(--positive)]" />
                 ) : (
                   <WifiOff size={18} className="text-[var(--negative)]" />
                 )}
                 <div>
                   <p className="text-xs font-medium text-[var(--text-primary)]">
-                    {mockExecutionHealth.brokerName}
+                    IBKR TWS Paper
                   </p>
                   <p className="text-[10px] text-[var(--text-muted)]">
-                    Last heartbeat: {formatDateTime(mockExecutionHealth.lastHeartbeat)}
+                    Port 4002 &middot; Account DUP272334
                   </p>
                 </div>
               </div>
               <Badge
-                variant={mockExecutionHealth.brokerConnected ? "success" : "danger"}
+                variant={ibkrConnected ? "success" : "danger"}
                 size="md"
               >
-                {mockExecutionHealth.brokerConnected ? "Connected" : "Disconnected"}
+                {ibkrConnected ? "Connected" : "Disconnected"}
               </Badge>
             </div>
 
-            {/* Metrics grid */}
             <div className="grid grid-cols-2 gap-3">
               <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5">
-                <div className="text-[10px] font-medium uppercase tracking-wider text-[var(--text-muted)]">
-                  Fill Rate
-                </div>
-                <div className={`mt-1 text-lg font-bold ${
-                  mockExecutionHealth.orderFillRate >= 0.9 ? "text-[var(--positive)]" :
-                  mockExecutionHealth.orderFillRate >= 0.8 ? "text-[var(--warning)]" :
-                  "text-[var(--negative)]"
-                }`}>
-                  {(mockExecutionHealth.orderFillRate * 100).toFixed(0)}%
+                <div className="text-[10px] font-medium uppercase tracking-wider text-[var(--text-muted)]">Total Agents</div>
+                <div className="mt-1 text-lg font-bold text-[var(--text-primary)]">
+                  {agents?.length || 0}
                 </div>
                 <div className="mt-0.5 text-[10px] text-[var(--text-muted)]">
-                  {mockExecutionHealth.filledToday}/{mockExecutionHealth.totalOrdersToday} today
+                  {healthyAgents} healthy
                 </div>
               </div>
 
               <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5">
-                <div className="text-[10px] font-medium uppercase tracking-wider text-[var(--text-muted)]">
-                  Avg Slippage
-                </div>
+                <div className="text-[10px] font-medium uppercase tracking-wider text-[var(--text-muted)]">Risk Events</div>
                 <div className={`mt-1 text-lg font-bold ${
-                  mockExecutionHealth.avgSlippageBps <= 3 ? "text-[var(--positive)]" :
-                  mockExecutionHealth.avgSlippageBps <= 5 ? "text-[var(--warning)]" :
+                  alertList.length === 0 ? "text-[var(--positive)]" :
+                  alertList.length <= 2 ? "text-[var(--warning)]" :
                   "text-[var(--negative)]"
                 }`}>
-                  {mockExecutionHealth.avgSlippageBps.toFixed(1)} bps
+                  {alertList.length}
                 </div>
                 <div className="mt-0.5 text-[10px] text-[var(--text-muted)]">
-                  Target: &lt;3.0 bps
+                  Active unresolved
                 </div>
               </div>
 
               <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5">
-                <div className="text-[10px] font-medium uppercase tracking-wider text-[var(--text-muted)]">
-                  Failed Orders
-                </div>
+                <div className="text-[10px] font-medium uppercase tracking-wider text-[var(--text-muted)]">Kill Switch</div>
                 <div className={`mt-1 text-lg font-bold ${
-                  mockExecutionHealth.failedOrders === 0 ? "text-[var(--positive)]" :
-                  mockExecutionHealth.failedOrders <= 2 ? "text-[var(--warning)]" :
-                  "text-[var(--negative)]"
+                  killSwitchActive ? "text-[var(--negative)]" : "text-[var(--positive)]"
                 }`}>
-                  {mockExecutionHealth.failedOrders}
+                  {killSwitchActive ? "ACTIVE" : "OFF"}
                 </div>
                 <div className="mt-0.5 text-[10px] text-[var(--text-muted)]">
-                  Today
+                  {risk.killSwitchReason || "No issues"}
                 </div>
               </div>
 
               <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5">
-                <div className="text-[10px] font-medium uppercase tracking-wider text-[var(--text-muted)]">
-                  Stale Orders
-                </div>
+                <div className="text-[10px] font-medium uppercase tracking-wider text-[var(--text-muted)]">Database</div>
                 <div className={`mt-1 text-lg font-bold ${
-                  mockExecutionHealth.staleOrders === 0 ? "text-[var(--positive)]" :
-                  "text-[var(--warning)]"
+                  health?.supabase_connected || health?.supabaseConnected ? "text-[var(--positive)]" : "text-[var(--negative)]"
                 }`}>
-                  {mockExecutionHealth.staleOrders}
+                  {health?.supabase_connected || health?.supabaseConnected ? "Online" : "Offline"}
                 </div>
                 <div className="mt-0.5 text-[10px] text-[var(--text-muted)]">
-                  Pending: {mockExecutionHealth.pendingToday}
+                  Supabase
                 </div>
               </div>
             </div>

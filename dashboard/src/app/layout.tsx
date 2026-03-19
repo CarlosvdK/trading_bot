@@ -1,26 +1,21 @@
 import type { Metadata } from "next";
-import { Inter, JetBrains_Mono } from "next/font/google";
+import { Inter } from "next/font/google";
 import { Sidebar } from "@/components/layout/Sidebar";
-import { TopBar } from "@/components/layout/TopBar";
-import { ConnectionBanner } from "@/components/layout/ConnectionBanner";
 import "./globals.css";
 
-const inter = Inter({ variable: "--font-sans", subsets: ["latin"] });
-const jetbrainsMono = JetBrains_Mono({ variable: "--font-mono", subsets: ["latin"] });
+const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 
 export const metadata: Metadata = {
-  title: "Trading Ops Dashboard",
-  description: "Multi-agent trading operations dashboard",
+  title: "TradeOps — Multi-Agent Trading",
+  description: "121-agent algorithmic trading system",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className={`${inter.variable} ${jetbrainsMono.variable} font-[family-name:var(--font-sans)] antialiased`}>
+      <body className={`${inter.variable} font-[family-name:var(--font-sans)] antialiased`}>
         <Sidebar />
-        <ConnectionBanner />
-        <TopBar />
-        <main className="ml-60 mt-14 min-h-[calc(100vh-3.5rem)] bg-[var(--bg-base)] p-6">
+        <main className="ml-[220px] min-h-screen bg-[var(--bg-base)]">
           {children}
         </main>
       </body>

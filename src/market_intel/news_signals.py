@@ -75,6 +75,18 @@ def generate_news_signals(
     # 4. Propagate to related stocks
     full_sentiment = propagate_sentiment(symbol_sentiment, symbols)
 
+    # 4b. LLM enhancement — deeper analysis for high-priority symbols
+    try:
+        from src.market_intel.llm_sentiment import enhance_sentiment_batch
+        symbol_headlines = {}
+        for item in news_items:
+            sym = item.get("symbol", "")
+            if sym:
+                symbol_headlines.setdefault(sym, []).append(item["title"])
+        full_sentiment = enhance_sentiment_batch(symbol_headlines, full_sentiment)
+    except Exception as e:
+        logger.debug(f"LLM sentiment enhancement skipped: {e}")
+
     # 5. Generate signals
     signals = []
     for sym, sent in full_sentiment.items():

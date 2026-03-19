@@ -47,3 +47,8 @@ def get_webhook_secret() -> Optional[str]:
 
 def get_db_password() -> Optional[str]:
     return get_secret("DB_PASSWORD", required=False)
+
+
+def get_anthropic_api_key() -> Optional[str]:
+    """Get Anthropic API key for LLM-enhanced features (optional)."""
+    return get_secret("ANTHROPIC_API_KEY", required=False)
