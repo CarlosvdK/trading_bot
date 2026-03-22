@@ -56,6 +56,8 @@ from src.trading.order_manager import OrderManager
 from src.brain.orchestrator import TradingOrchestrator
 from src.market_intel.premarket import PreMarketAnalyzer, WeekendAnalyzer
 
+from typing import Dict, Optional
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
@@ -326,6 +328,108 @@ def run_weekend_tasks(
 
 
 # ---------------------------------------------------------------------------
+# Supabase persistence
+# ---------------------------------------------------------------------------
+
+def _persist_daily(
+    repo,
+    orchestrator: TradingOrchestrator,
+    actions: dict,
+    active_trade_ids: Dict[str, str],
+) -> None:
+    """Persist daily cycle results to Supabase for dashboard."""
+    if repo is None:
+        return
+
+    try:
+        ps = orchestrator.portfolio_state
+        regime = actions.get("regime", "unknown")
+
+        # 1. Portfolio snapshot
+        drawdown = 1 - (ps.nav / ps.peak_nav) if ps.peak_nav > 0 else 0
+        repo.save_portfolio_snapshot({
+            "snapshot_date": pd.Timestamp.now().strftime("%Y-%m-%d"),
+            "total_value": round(ps.nav, 2),
+            "cash_balance": round(ps.cash, 2),
+            "unrealized_pnl": 0.0,
+            "realized_pnl": sum(t.get("pnl", 0) for t in orchestrator.trade_log),
+            "daily_pnl": round(ps.nav - ps.day_start_nav, 2),
+            "gross_exposure": round(sum(
+                abs(p.get("qty", 0) * p.get("entry_price", 0))
+                for p in orchestrator.open_positions.values()
+            ), 2),
+            "net_exposure": round(sum(
+                p.get("qty", 0) * p.get("entry_price", 0)
+                for p in orchestrator.open_positions.values()
+            ), 2),
+            "open_positions": len(orchestrator.open_positions),
+            "drawdown": round(drawdown, 4),
+            "regime": regime,
+        })
+
+        # 2. Pipeline run
+        n_signals = len(actions.get("signals", []))
+        n_trades = len(actions.get("trades", []))
+        scan_id = repo.start_pipeline_run(regime=regime)
+        repo.complete_pipeline_run(scan_id, {
+            "scanned": len(orchestrator.config.get("_active_symbols", [])) or 278,
+            "surfaced": n_signals,
+            "voted": n_signals,
+            "approved": n_trades,
+        })
+
+        # 3. Record new trades
+        for trade in actions.get("trades", []):
+            sym = trade.get("symbol", "")
+            if not sym:
+                continue
+            trade_id = repo.record_proposal(
+                agent_id=trade.get("agent_id", "orchestrator"),
+                symbol=sym,
+                direction=trade.get("direction", "LONG"),
+                confidence=trade.get("confidence", 0.5),
+                strategy=trade.get("strategy", "swing"),
+                reasoning=trade.get("reason", ""),
+                hold_days=trade.get("hold_days", 10),
+                sector=trade.get("sector", ""),
+                regime=regime,
+            )
+            repo.record_execution(
+                trade_id=trade_id,
+                entry_price=trade.get("entry_price", 0),
+                quantity=trade.get("qty", 0),
+                fees=trade.get("fees", 0),
+            )
+            active_trade_ids[sym] = trade_id
+
+        # 4. Record exits
+        for exit_trade in actions.get("exits", []):
+            sym = exit_trade.get("symbol", "")
+            trade_id = active_trade_ids.pop(sym, "")
+            if trade_id:
+                repo.record_exit(
+                    trade_id=trade_id,
+                    exit_price=exit_trade.get("exit_price", 0),
+                    actual_return=exit_trade.get("pnl_pct", 0),
+                    pnl=exit_trade.get("pnl", 0),
+                    actual_hold_days=exit_trade.get("days_held", 0),
+                )
+
+        # 5. Risk events
+        if actions.get("kill_switch"):
+            repo.record_risk_event(
+                event_type="kill_switch",
+                severity="critical",
+                message="Kill switch activated",
+                details={"regime": regime, "nav": ps.nav},
+            )
+
+        logger.info("Persisted daily results to Supabase")
+    except Exception as e:
+        logger.warning(f"Supabase persistence failed (non-fatal): {e}")
+
+
+# ---------------------------------------------------------------------------
 # Main loop
 # ---------------------------------------------------------------------------
 
@@ -424,6 +528,21 @@ def main():
     orchestrator = TradingOrchestrator(config, str(ROOT), order_manager=order_manager)
     orchestrator.portfolio_state = portfolio_state
 
+    # --- Supabase persistence ---
+    repo = None
+    try:
+        from src.storage.supabase_client import get_supabase_client
+        from src.storage.repository import TradingRepository
+        sb = get_supabase_client()
+        if sb:
+            repo = TradingRepository(sb)
+            logger.info("Supabase persistence enabled")
+    except Exception as e:
+        logger.warning(f"Supabase unavailable, running without persistence: {e}")
+
+    # Track trade IDs for Supabase lifecycle (symbol -> trade_id)
+    active_trade_ids: Dict[str, str] = {}
+
     # --- Warmup ---
     if not args.no_warmup:
         logger.info("Warming up models...")
@@ -468,7 +587,8 @@ def main():
         if mode == "market":
             # Run daily cycle once at market open
             if last_daily_run != today:
-                run_daily_cycle(orchestrator, price_data, index_df, premarket)
+                actions = run_daily_cycle(orchestrator, price_data, index_df, premarket)
+                _persist_daily(repo, orchestrator, actions, active_trade_ids)
                 last_daily_run = today
 
                 if args.once:
