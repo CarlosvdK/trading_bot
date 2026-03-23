@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart3, Brain, Wifi, WifiOff, Database, Clock } from "lucide-react";
+import { BarChart3, Brain, Wifi, WifiOff, Database, Clock, Activity } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useApi } from "@/hooks/useApi";
 import { fetchHealth } from "@/lib/api";
@@ -34,6 +34,7 @@ function isMarketOpen(): boolean {
 
 const nav = [
   { label: "Portfolio", href: "/", icon: BarChart3 },
+  { label: "Live Activity", href: "/activity", icon: Activity },
   { label: "Agent Swarm", href: "/swarm", icon: Brain },
 ];
 
@@ -60,10 +61,10 @@ export function Sidebar() {
       <div className="px-6 pt-8 pb-6">
         <div className="flex items-center gap-2.5">
           <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-[var(--accent)] text-white text-xs font-black">
-            T
+            M
           </div>
           <div>
-            <h1 className="text-lg font-black tracking-tight text-[var(--text-primary)]">TradeOps</h1>
+            <h1 className="text-lg font-black tracking-tight text-[var(--text-primary)]">MulaMachina</h1>
             <p className="text-[10px] text-[var(--accent)] font-medium">121-agent swarm</p>
           </div>
         </div>

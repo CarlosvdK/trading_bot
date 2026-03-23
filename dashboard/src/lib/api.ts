@@ -21,6 +21,7 @@ export const fetchAgents = () => apiFetch<any[]>("/api/agents", []);
 export const fetchAgent = (id: string) => apiFetch<any>(`/api/agents/${id}`, null);
 export const fetchAgentNetwork = () => apiFetch<{ nodes: any[]; edges: any[] }>("/api/agents/network", { nodes: [], edges: [] });
 export const fetchLeaderboard = () => apiFetch<any[]>("/api/agents/leaderboard", []);
+export const fetchActivity = () => apiFetch<any[]>("/api/agents/activity?limit=100", []);
 
 // Pipeline
 export const fetchPipelineStatus = () => apiFetch<any>("/api/pipeline/status", {});

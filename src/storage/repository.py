@@ -424,6 +424,59 @@ class TradingRepository:
             logger.error(f"Failed to resolve risk event {event_id}: {e}")
 
     # ==============================================================
+    # AGENT ACTIVITY FEED
+    # ==============================================================
+
+    def log_activity(
+        self,
+        agent_id: str,
+        activity_type: str,
+        summary: str,
+        symbol: str = "",
+        details: Optional[Dict] = None,
+        market_mode: str = "",
+    ) -> None:
+        """Log an agent activity event for the live feed."""
+        row = {
+            "agent_id": agent_id,
+            "activity_type": activity_type,
+            "summary": summary,
+            "symbol": symbol,
+            "details": details or {},
+            "market_mode": market_mode,
+        }
+        try:
+            self.sb.table("agent_activity").insert(row).execute()
+        except Exception as e:
+            logger.error(f"Failed to log activity for {agent_id}: {e}")
+
+    def bulk_log_activity(self, events: List[Dict[str, Any]]) -> None:
+        """Log multiple activity events at once."""
+        if not events:
+            return
+        try:
+            self.sb.table("agent_activity").insert(events).execute()
+        except Exception as e:
+            logger.error(f"Failed to bulk log activity: {e}")
+
+    def get_recent_activity(
+        self, limit: int = 50, activity_type: str = ""
+    ) -> List[Dict[str, Any]]:
+        """Get recent agent activity for the live feed."""
+        try:
+            query = self.sb.table("agent_activity") \
+                .select("*") \
+                .order("created_at", desc=True) \
+                .limit(limit)
+            if activity_type:
+                query = query.eq("activity_type", activity_type)
+            result = query.execute()
+            return result.data
+        except Exception as e:
+            logger.error(f"Failed to get recent activity: {e}")
+            return []
+
+    # ==============================================================
     # AGGREGATE QUERIES (for dashboard)
     # ==============================================================
 

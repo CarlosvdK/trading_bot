@@ -552,6 +552,30 @@ def main():
     premarket = PreMarketAnalyzer(all_symbols, config)
     weekend = WeekendAnalyzer(config)
 
+    # --- Activity logger helper ---
+    def log_activity(
+        activity_type: str,
+        summary: str,
+        agent_id: str = "system",
+        symbol: str = "",
+        details: Optional[dict] = None,
+    ) -> None:
+        """Log an agent activity event to Supabase for the live feed."""
+        if repo is None:
+            return
+        try:
+            current_mode = args.mode if args.mode != "auto" else get_market_mode()
+            repo.log_activity(
+                agent_id=agent_id,
+                activity_type=activity_type,
+                summary=summary,
+                symbol=symbol,
+                details=details,
+                market_mode=current_mode,
+            )
+        except Exception:
+            pass  # Non-fatal
+
     # --- Banner ---
     mode = args.mode if args.mode != "auto" else get_market_mode()
     logger.info(f"\n{'='*60}")
@@ -564,6 +588,12 @@ def main():
     logger.info(f"  Overnight scan interval: {args.overnight_interval} min")
     logger.info(f"  Intraday monitor interval: {args.monitor_interval} min")
     logger.info(f"{'='*60}\n")
+
+    log_activity(
+        "regime",
+        f"24/7 Trading Bot started — {len(price_data)} stocks, NAV ${portfolio_state.nav:,.0f}, mode: {mode}",
+        details={"broker": args.broker, "universe_size": len(price_data), "ml_version": orchestrator.ml_trainer.model_version},
+    )
 
     # --- State tracking ---
     last_daily_run = None
@@ -587,14 +617,38 @@ def main():
         if mode == "market":
             # Run daily cycle once at market open
             if last_daily_run != today:
+                log_activity("execution", "Market open — running daily trading cycle", details={"date": str(today)})
                 actions = run_daily_cycle(orchestrator, price_data, index_df, premarket)
                 _persist_daily(repo, orchestrator, actions, active_trade_ids)
-                last_daily_run = today
 
+                # Log trades and exits
+                for trade in actions.get("trades", []):
+                    sym = trade.get("symbol", "")
+                    log_activity(
+                        "execution",
+                        f"Entered {trade.get('direction', 'long')} position in {sym} @ ${trade.get('price', 0):.2f}",
+                        agent_id=trade.get("agent_id", "orchestrator"),
+                        symbol=sym,
+                        details=trade,
+                    )
+                for exit_t in actions.get("exits", []):
+                    sym = exit_t.get("symbol", "")
+                    log_activity(
+                        "execution",
+                        f"Exited {sym} — PnL ${exit_t.get('pnl', 0):+,.2f} ({exit_t.get('pnl_pct', 0):+.2%})",
+                        symbol=sym,
+                        details=exit_t,
+                    )
+                regime = actions.get("regime", "unknown")
+                log_activity("regime", f"Daily cycle complete — regime: {regime}, {len(actions.get('trades', []))} trades, {len(actions.get('exits', []))} exits")
+
+                last_daily_run = today
                 if args.once:
                     break
 
             # Monitor positions
+            if orchestrator.open_positions:
+                log_activity("monitoring", f"Monitoring {len(orchestrator.open_positions)} open positions", details={"symbols": list(orchestrator.open_positions.keys())})
             run_intraday_monitor(orchestrator)
             time.sleep(args.monitor_interval * 60)
 
@@ -609,8 +663,17 @@ def main():
             )
 
             if should_scan:
-                run_overnight_scan(premarket)
+                log_activity("news_scan", f"Scanning news and catalysts (scan #{premarket.scan_count + 1})")
+                result = run_overnight_scan(premarket)
                 last_overnight_scan = datetime.now()
+
+                new_items = result.get("new_items", 0)
+                if new_items > 0:
+                    log_activity(
+                        "analysis",
+                        f"Found {new_items} new items — {result.get('total_accumulated', 0)} total accumulated, {result.get('catalysts', 0)} catalysts",
+                        details=result,
+                    )
 
             # Pre-market: show playbook preview close to open
             if mode == "premarket" and et.hour == 9 and et.minute >= 15:
@@ -619,10 +682,21 @@ def main():
                     logger.info(
                         f"\n  PRE-MARKET PLAYBOOK PREVIEW ({len(playbook['trades'])} trades ready)"
                     )
+                    log_activity(
+                        "playbook",
+                        f"Morning playbook ready — {len(playbook['trades'])} trades, mood: {playbook.get('market_mood', '?')}, confidence: {playbook.get('confidence', 0):.0%}",
+                        details={"trades": [t["symbol"] for t in playbook["trades"][:10]]},
+                    )
                     for t in playbook["trades"][:5]:
                         logger.info(
                             f"    {t['direction']:>5} {t['symbol']:<6} "
                             f"conviction={t['conviction']:.2f}"
+                        )
+                        log_activity(
+                            "thesis",
+                            f"Pre-market thesis: {t['direction']} {t['symbol']} — conviction {t['conviction']:.2f}, sentiment {t.get('sentiment_score', 0):+.3f}",
+                            symbol=t["symbol"],
+                            details=t,
                         )
 
             # Sleep until next scan
@@ -636,8 +710,19 @@ def main():
 
             # Run weekend tasks once per weekend
             if last_weekend_run is None or last_weekend_run < this_week:
-                run_weekend_tasks(weekend, price_data, orchestrator)
+                log_activity("retraining", "Starting weekend maintenance — ML retraining, universe scan, sector rotation analysis")
+                results = run_weekend_tasks(weekend, price_data, orchestrator)
                 last_weekend_run = today
+
+                if results.get("retrain"):
+                    log_activity("retraining", f"ML model retrained: {results['retrain']}", details=results.get("retrain"))
+                if results.get("scanner", {}).get("added"):
+                    log_activity("analysis", f"New symbols added to universe: {', '.join(results['scanner']['added'])}", details=results["scanner"])
+                if results.get("sector_rotation"):
+                    sr = results["sector_rotation"]
+                    up = [k for k, v in sr.items() if v.get("trend") == "up"]
+                    down = [k for k, v in sr.items() if v.get("trend") == "down"]
+                    log_activity("analysis", f"Sector rotation: {len(up)} sectors trending up, {len(down)} trending down", details={"up": up[:5], "down": down[:5]})
 
             # Still scan news on weekends (less frequently)
             should_scan = (
@@ -645,8 +730,12 @@ def main():
                 or (datetime.now() - last_overnight_scan).total_seconds() >= 7200
             )
             if should_scan:
-                run_overnight_scan(premarket)
+                log_activity("news_scan", "Weekend news scan — monitoring for breaking stories")
+                result = run_overnight_scan(premarket)
                 last_overnight_scan = datetime.now()
+                new_items = result.get("new_items", 0)
+                if new_items > 0:
+                    log_activity("analysis", f"Weekend scan found {new_items} new items", details=result)
 
             # Sleep longer on weekends
             time.sleep(1800)  # 30 min

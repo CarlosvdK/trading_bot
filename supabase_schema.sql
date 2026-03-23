@@ -134,6 +134,20 @@ CREATE TABLE IF NOT EXISTS risk_events (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- ============================================================
+-- AGENT ACTIVITY: Real-time feed of what agents are doing
+-- ============================================================
+CREATE TABLE IF NOT EXISTS agent_activity (
+    id BIGSERIAL PRIMARY KEY,
+    agent_id TEXT NOT NULL,
+    activity_type TEXT NOT NULL,  -- news_scan, analysis, thesis, proposal, vote, execution, monitoring, learning, retraining, playbook, regime
+    symbol TEXT,
+    summary TEXT NOT NULL,
+    details JSONB,
+    market_mode TEXT,  -- weekend, premarket, market, overnight
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- Indexes for fast queries
 CREATE INDEX IF NOT EXISTS idx_agent_scores_agent ON agent_scores(agent_id);
 CREATE INDEX IF NOT EXISTS idx_trade_history_agent ON trade_history(agent_id);
@@ -142,3 +156,5 @@ CREATE INDEX IF NOT EXISTS idx_trade_history_outcome ON trade_history(outcome);
 CREATE INDEX IF NOT EXISTS idx_agent_learning_agent ON agent_learning(agent_id);
 CREATE INDEX IF NOT EXISTS idx_portfolio_snapshots_date ON portfolio_snapshots(snapshot_date);
 CREATE INDEX IF NOT EXISTS idx_risk_events_type ON risk_events(event_type);
+CREATE INDEX IF NOT EXISTS idx_agent_activity_type ON agent_activity(activity_type);
+CREATE INDEX IF NOT EXISTS idx_agent_activity_created ON agent_activity(created_at DESC);

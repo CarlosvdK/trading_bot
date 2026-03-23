@@ -6,7 +6,7 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 
 export const metadata: Metadata = {
-  title: "TradeOps — Multi-Agent Trading",
+  title: "MulaMachina — Multi-Agent Trading",
   description: "121-agent algorithmic trading system",
 };
 

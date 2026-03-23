@@ -127,6 +127,14 @@ def _run_scan(scan_id: str, repo, ibkr, risk_governor):
         pool = AgentPool(agents, engine, scorekeeper)
 
         logger.info("Running daily scan with 121 agents...")
+
+        # Log scan start to activity feed
+        if repo:
+            try:
+                repo.log_activity("system", "news_scan", f"Manual pipeline scan triggered — scanning {len(universe_data)} symbols with 121 agents", market_mode="market")
+            except Exception:
+                pass
+
         current_date = pd.Timestamp.now().normalize()
         approved = pool.daily_scan(universe_data, index_df, current_date)
         stats = pool.get_scan_stats()
@@ -181,6 +189,21 @@ def _run_scan(scan_id: str, repo, ibkr, risk_governor):
                     })
                 except Exception:
                     pass
+
+        # Log completion and approved trades to activity feed
+        if repo:
+            try:
+                repo.log_activity("system", "execution", f"Pipeline scan complete — {len(approved)} trades approved from {len(universe_data)} symbols", market_mode="market")
+                for trade in approved[:10]:
+                    proposer = trade.supporting_agents[0] if trade.supporting_agents else "swarm"
+                    repo.log_activity(
+                        proposer, "proposal",
+                        f"{trade.direction.upper()} {trade.symbol} — {trade.approval_pct:.0%} approval by {trade.num_voters} agents",
+                        symbol=trade.symbol,
+                        market_mode="market",
+                    )
+            except Exception:
+                pass
 
         _scan_status[scan_id] = {
             "status": "completed",

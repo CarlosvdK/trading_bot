@@ -79,6 +79,21 @@ def _get_score_for_agent(agent_id, scores_map):
     }
 
 
+@router.get("/activity")
+async def agent_activity(
+    limit: int = 50,
+    activity_type: str = "",
+    repo=Depends(get_repo),
+):
+    """Live activity feed — what agents are doing right now."""
+    if not repo:
+        return []
+    try:
+        return repo.get_recent_activity(limit=limit, activity_type=activity_type)
+    except Exception:
+        return []
+
+
 @router.get("/leaderboard")
 async def agent_leaderboard(repo=Depends(get_repo)):
     """Agents sorted by composite weight."""
