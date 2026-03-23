@@ -178,7 +178,7 @@ def run_daily_cycle(
     premarket: PreMarketAnalyzer,
 ) -> dict:
     """Execute the main daily trading cycle at market open."""
-    now = pd.Timestamp.now()
+    now = pd.Timestamp.now().normalize()  # midnight-aligned to match DataFrame index
 
     logger.info(f"\n{'='*60}")
     logger.info(f"  MARKET OPEN — DAILY CYCLE: {now.date()}")
