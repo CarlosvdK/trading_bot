@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart3, Brain, Wifi, WifiOff, Database, Clock, Activity } from "lucide-react";
+import { BarChart3, Brain, Wifi, WifiOff, Database, Clock, Activity, LogOut } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useApi } from "@/hooks/useApi";
 import { fetchHealth } from "@/lib/api";
@@ -133,6 +133,16 @@ export function Sidebar() {
             API Offline
           </div>
         )}
+        <button
+          onClick={async () => {
+            await fetch("/api/auth/logout", { method: "POST" });
+            window.location.href = "/login";
+          }}
+          className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg border border-[var(--border)] py-1.5 text-[10px] font-medium text-[var(--text-muted)] hover:bg-[var(--bg-hover)] transition-colors"
+        >
+          <LogOut size={10} />
+          Sign Out
+        </button>
       </div>
     </aside>
   );
