@@ -12,7 +12,7 @@ import {
   PolarRadiusAxis, Radar, Legend,
 } from "recharts";
 import { useApi } from "@/hooks/useApi";
-import { fetchAgents, fetchAgent, fetchPipelineFunnel } from "@/lib/api";
+import { fetchAgents, fetchAgent, fetchPipelineFunnel, fetchRecentTrades } from "@/lib/api";
 import { SwarmCanvas } from "@/components/swarm/SwarmCanvas";
 
 /* ------------------------------------------------------------------ */
@@ -49,6 +49,7 @@ interface AgentSummary {
 export default function SwarmPage() {
   const { data: agents, loading } = useApi(fetchAgents, 15000);
   const { data: funnel } = useApi(fetchPipelineFunnel, 30000);
+  const { data: recentTrades } = useApi(fetchRecentTrades, 15000);
 
   const [view, setView] = useState<"network" | "grid">("network");
   const [search, setSearch] = useState("");
@@ -271,6 +272,7 @@ export default function SwarmPage() {
         <div className="animate-fade-in stagger-3">
           <SwarmCanvas
             agents={agentList}
+            trades={recentTrades || []}
             onSelectAgent={(id) => setSelectedAgent(id)}
           />
         </div>

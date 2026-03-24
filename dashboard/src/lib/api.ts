@@ -15,6 +15,7 @@ export const fetchPortfolioSummary = () => apiFetch<any>("/api/portfolio/summary
 export const fetchPositions = () => apiFetch<any[]>("/api/portfolio/positions", []);
 export const fetchPortfolioHistory = () => apiFetch<any[]>("/api/portfolio/history", []);
 export const fetchAllocation = () => apiFetch<any>("/api/portfolio/allocation", { bySector: [], byStrategy: [], byDirection: [] });
+export const fetchRecentTrades = () => apiFetch<any[]>("/api/portfolio/trades?limit=50", []);
 
 // Agents
 export const fetchAgents = () => apiFetch<any[]>("/api/agents", []);

@@ -106,6 +106,17 @@ async def portfolio_positions(ibkr=Depends(get_ibkr), repo=Depends(get_repo)):
     return positions
 
 
+@router.get("/trades")
+async def recent_trades(limit: int = 50, repo=Depends(get_repo)):
+    """Recent trade proposals with vote results, reasoning, and outcomes."""
+    if not repo:
+        return []
+    try:
+        return repo.get_recent_trades(limit=limit)
+    except Exception:
+        return []
+
+
 @router.get("/history")
 async def portfolio_history(days: int = 90, repo=Depends(get_repo)):
     if not repo:

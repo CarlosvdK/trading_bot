@@ -41,8 +41,28 @@ interface AgentPosition {
   cluster: ClusterData;
 }
 
+interface Trade {
+  trade_id?: string;
+  agent_id?: string;
+  symbol?: string;
+  direction?: string;
+  confidence?: number;
+  strategy_used?: string;
+  reasoning?: string;
+  vote_result?: string;
+  approval_pct?: number;
+  num_voters?: number;
+  outcome?: string;
+  pnl?: number;
+  sector?: string;
+  supporting_agents?: string[];
+  dissenting_agents?: string[];
+  proposed_at?: string;
+}
+
 interface Props {
   agents: Agent[];
+  trades?: Trade[];
   onSelectAgent?: (id: string) => void;
 }
 
@@ -154,7 +174,7 @@ function curvedPath(x1: number, y1: number, x2: number, y2: number): string {
 /* Main Canvas                                                         */
 /* ------------------------------------------------------------------ */
 
-export function SwarmCanvas({ agents, onSelectAgent }: Props) {
+export function SwarmCanvas({ agents, trades = [], onSelectAgent }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ width: 1200, height: 800 });
   const [hoveredCluster, setHoveredCluster] = useState<string | null>(null);
@@ -229,6 +249,62 @@ export function SwarmCanvas({ agents, onSelectAgent }: Props) {
     });
     return positions;
   }, [clusters]);
+
+  // Group trades by sector for cluster tooltips
+  const tradesBySector = useMemo(() => {
+    const map: Record<string, Trade[]> = {};
+    trades.forEach((t) => {
+      const sector = (t.sector || "other").toLowerCase();
+      if (!map[sector]) map[sector] = [];
+      map[sector].push(t);
+    });
+    return map;
+  }, [trades]);
+
+  // Map trades to clusters
+  const tradesByCluster = useMemo(() => {
+    const map: Record<string, Trade[]> = {};
+    clusters.forEach((cluster) => {
+      const sectorKeys = Array.from(new Set(cluster.agents.flatMap((a) => a.primarySectors)));
+      const clusterTrades: Trade[] = [];
+      sectorKeys.forEach((s) => {
+        (tradesBySector[s.toLowerCase()] || []).forEach((t) => {
+          if (!clusterTrades.find((ct) => ct.trade_id === t.trade_id)) clusterTrades.push(t);
+        });
+      });
+      // Also match by agent_id
+      const agentIds = new Set(cluster.agents.map((a) => a.agentId));
+      trades.forEach((t) => {
+        if (t.agent_id && agentIds.has(t.agent_id) && !clusterTrades.find((ct) => ct.trade_id === t.trade_id)) {
+          clusterTrades.push(t);
+        }
+      });
+      map[cluster.id] = clusterTrades.sort((a, b) => (b.proposed_at || "").localeCompare(a.proposed_at || ""));
+    });
+    return map;
+  }, [clusters, trades, tradesBySector]);
+
+  // Trades by agent
+  const tradesByAgent = useMemo(() => {
+    const map: Record<string, Trade[]> = {};
+    trades.forEach((t) => {
+      if (t.agent_id) {
+        if (!map[t.agent_id]) map[t.agent_id] = [];
+        map[t.agent_id].push(t);
+      }
+    });
+    return map;
+  }, [trades]);
+
+  // Pipeline summary stats
+  const pipelineStats = useMemo(() => {
+    const approved = trades.filter((t) => t.vote_result === "approved");
+    const rejected = trades.filter((t) => t.vote_result === "rejected");
+    const executed = trades.filter((t) => t.outcome === "open" || t.outcome === "profitable" || t.outcome === "losing");
+    const profitable = trades.filter((t) => t.outcome === "profitable");
+    const strategies = new Set(trades.map((t) => t.strategy_used).filter(Boolean));
+    return { approved: approved.length, rejected: rejected.length, executed: executed.length, profitable: profitable.length, total: trades.length, strategies: Array.from(strategies) };
+  }, [trades]);
 
   const handleMouseMove = (e: React.MouseEvent) => {
     const rect = containerRef.current?.getBoundingClientRect();
@@ -444,9 +520,37 @@ export function SwarmCanvas({ agents, onSelectAgent }: Props) {
               })}
             </div>
 
+            {/* Agent's recent trades */}
+            {(() => {
+              const agentTrades = tradesByAgent[hoveredAgent.agent.agentId] || [];
+              if (agentTrades.length > 0) {
+                return (
+                  <div className="mb-2">
+                    <p className="text-[9px] font-bold text-[var(--text-muted)] uppercase tracking-wider mb-1">Recent Picks</p>
+                    <div className="space-y-1 max-h-[80px] overflow-y-auto">
+                      {agentTrades.slice(0, 3).map((t, i) => (
+                        <div key={t.trade_id || i} className={`flex items-center justify-between px-2 py-1 rounded-md ${t.vote_result === "approved" ? "bg-[var(--positive-light)]" : "bg-[var(--negative-light)]"}`}>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[9px] font-bold">{t.direction?.toUpperCase()} {t.symbol}</span>
+                            <span className="text-[8px] px-1 py-0.5 rounded bg-[var(--bg-hover)] text-[var(--text-muted)]">{t.strategy_used?.replace(/_/g, " ") || "swing"}</span>
+                          </div>
+                          <span className={`text-[9px] font-bold ${t.vote_result === "approved" ? "text-[var(--positive)]" : "text-[var(--negative)]"}`}>
+                            {t.vote_result === "approved" ? "✓" : "✗"}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              }
+              return null;
+            })()}
+
             {/* Quick stats */}
             <div className="flex items-center justify-between pt-2 border-t border-[var(--border)]">
-              <span className="text-[9px] text-[var(--text-muted)]">{hoveredAgent.agent.holdingPeriod || "swing"} · {hoveredAgent.agent.lookbackDays || 0}d lookback</span>
+              <span className="text-[9px] text-[var(--text-muted)]">
+                <span className="font-bold capitalize">{hoveredAgent.agent.holdingPeriod || "swing"}</span> · {hoveredAgent.agent.lookbackDays || 0}d lookback
+              </span>
               <span className="text-[9px] font-bold text-[var(--accent)]">Risk: {Math.round((hoveredAgent.agent.riskAppetite || 0.5) * 100)}%</span>
             </div>
 
@@ -457,63 +561,157 @@ export function SwarmCanvas({ agents, onSelectAgent }: Props) {
       )}
 
       {/* ====== TOOLTIP: Cluster ====== */}
-      {hoveredClusterData && !hoveredAgent && (
-        <div
-          className="canvas-tooltip absolute z-20 pointer-events-none"
-          style={{
-            left: Math.min(mousePos.x + 16, size.width - 280),
-            top: Math.min(mousePos.y - 10, size.height - 250),
-          }}
-        >
-          <div className="bg-white rounded-2xl shadow-xl border border-[var(--border)] p-5 w-[260px]">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="h-3 w-3 rounded-full" style={{ background: hoveredClusterData.color }} />
-              <h4 className="text-sm font-black text-[var(--text-primary)]">{hoveredClusterData.name}</h4>
-              <span className="ml-auto text-xs font-bold text-[var(--text-muted)]">{hoveredClusterData.agents.length} agents</span>
-            </div>
-            <div className="space-y-1.5 max-h-[180px] overflow-y-auto">
-              {hoveredClusterData.agents.slice(0, 12).map((a) => (
-                <div key={a.agentId} className="flex items-center justify-between py-1">
-                  <span className="text-[11px] font-medium text-[var(--text-secondary)] truncate max-w-[140px]">{a.displayName}</span>
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-[10px] font-semibold tabular-nums text-[var(--text-muted)]">{Math.round(a.compositeWeight * 100)}</span>
-                    <span className={`h-1.5 w-1.5 rounded-full ${
-                      a.status === "healthy" ? "bg-[var(--positive)]" : a.status === "warning" ? "bg-[var(--warning)]" : "bg-[var(--negative)]"
-                    }`} />
+      {hoveredClusterData && !hoveredAgent && (() => {
+        const clTrades = tradesByCluster[hoveredClusterData.id] || [];
+        const accepted = clTrades.filter((t) => t.vote_result === "approved");
+        const rejected = clTrades.filter((t) => t.vote_result === "rejected");
+        return (
+          <div
+            className="canvas-tooltip absolute z-20 pointer-events-none"
+            style={{
+              left: Math.min(mousePos.x + 16, size.width - 320),
+              top: Math.min(mousePos.y - 10, size.height - 400),
+            }}
+          >
+            <div className="bg-white rounded-2xl shadow-xl border border-[var(--border)] p-5 w-[310px]">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="h-3 w-3 rounded-full" style={{ background: hoveredClusterData.color }} />
+                <h4 className="text-sm font-black text-[var(--text-primary)]">{hoveredClusterData.name}</h4>
+                <span className="ml-auto text-xs font-bold text-[var(--text-muted)]">{hoveredClusterData.agents.length} agents</span>
+              </div>
+
+              {/* Accepted trades */}
+              {accepted.length > 0 && (
+                <div className="mb-3">
+                  <p className="text-[10px] font-bold text-[var(--positive)] uppercase tracking-wider mb-1.5">Accepted ({accepted.length})</p>
+                  <div className="space-y-1.5 max-h-[120px] overflow-y-auto">
+                    {accepted.slice(0, 5).map((t, i) => (
+                      <div key={t.trade_id || i} className="rounded-lg bg-[var(--positive-light)] px-3 py-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] font-bold text-[var(--text-primary)]">{t.direction?.toUpperCase()} {t.symbol}</span>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-[var(--positive)] text-white">{t.strategy_used?.replace(/_/g, " ") || "swing"}</span>
+                            <span className="text-[10px] font-bold text-[var(--positive)]">{Math.round((t.approval_pct || 0) * 100)}%</span>
+                          </div>
+                        </div>
+                        {t.reasoning && <p className="text-[9px] text-[var(--text-muted)] mt-1 line-clamp-2">{t.reasoning}</p>}
+                      </div>
+                    ))}
+                    {accepted.length > 5 && <p className="text-[9px] text-[var(--text-muted)]">+{accepted.length - 5} more</p>}
                   </div>
                 </div>
-              ))}
-              {hoveredClusterData.agents.length > 12 && (
-                <p className="text-[10px] text-[var(--text-muted)] pt-1">+{hoveredClusterData.agents.length - 12} more</p>
               )}
-            </div>
-            <div className="mt-3 pt-3 border-t border-[var(--border)] flex gap-2 flex-wrap">
-              {Array.from(new Set(hoveredClusterData.agents.flatMap((a) => a.primarySectors))).slice(0, 4).map((sector) => (
-                <span key={sector} className="rounded-full px-2 py-0.5 text-[9px] font-semibold capitalize" style={{ background: `${hoveredClusterData.color}15`, color: hoveredClusterData.color }}>{sector}</span>
-              ))}
+
+              {/* Rejected trades */}
+              {rejected.length > 0 && (
+                <div className="mb-3">
+                  <p className="text-[10px] font-bold text-[var(--negative)] uppercase tracking-wider mb-1.5">Rejected ({rejected.length})</p>
+                  <div className="space-y-1.5 max-h-[100px] overflow-y-auto">
+                    {rejected.slice(0, 4).map((t, i) => (
+                      <div key={t.trade_id || i} className="rounded-lg bg-[var(--negative-light)] px-3 py-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] font-medium text-[var(--text-secondary)]">{t.direction?.toUpperCase()} {t.symbol}</span>
+                          <span className="text-[10px] text-[var(--negative)]">{Math.round((t.approval_pct || 0) * 100)}% approval</span>
+                        </div>
+                        {t.reasoning && <p className="text-[9px] text-[var(--text-muted)] mt-1 line-clamp-1">{t.reasoning}</p>}
+                      </div>
+                    ))}
+                    {rejected.length > 4 && <p className="text-[9px] text-[var(--text-muted)]">+{rejected.length - 4} more</p>}
+                  </div>
+                </div>
+              )}
+
+              {/* No trades yet */}
+              {clTrades.length === 0 && (
+                <div className="space-y-1.5 max-h-[180px] overflow-y-auto mb-3">
+                  {hoveredClusterData.agents.slice(0, 8).map((a) => (
+                    <div key={a.agentId} className="flex items-center justify-between py-1">
+                      <span className="text-[11px] font-medium text-[var(--text-secondary)] truncate max-w-[140px]">{a.displayName}</span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-[var(--bg-hover)] text-[var(--text-muted)] capitalize">{a.primaryStrategy.replace(/_/g, " ")}</span>
+                        <span className={`h-1.5 w-1.5 rounded-full ${
+                          a.status === "healthy" ? "bg-[var(--positive)]" : a.status === "warning" ? "bg-[var(--warning)]" : "bg-[var(--negative)]"
+                        }`} />
+                      </div>
+                    </div>
+                  ))}
+                  {hoveredClusterData.agents.length > 8 && (
+                    <p className="text-[10px] text-[var(--text-muted)]">+{hoveredClusterData.agents.length - 8} more agents</p>
+                  )}
+                  <p className="text-[9px] text-[var(--text-muted)] italic pt-1">No trades proposed yet — waiting for market scan</p>
+                </div>
+              )}
+
+              <div className="pt-2 border-t border-[var(--border)] flex gap-2 flex-wrap">
+                {Array.from(new Set(hoveredClusterData.agents.flatMap((a) => a.primarySectors))).slice(0, 4).map((sector) => (
+                  <span key={sector} className="rounded-full px-2 py-0.5 text-[9px] font-semibold capitalize" style={{ background: `${hoveredClusterData.color}15`, color: hoveredClusterData.color }}>{sector}</span>
+                ))}
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* ====== TOOLTIP: Center ====== */}
       {hoveredCenter && (
-        <div className="canvas-tooltip absolute z-20 pointer-events-none" style={{ left: cx + 60, top: cy - 60 }}>
-          <div className="bg-white rounded-2xl shadow-xl border border-[var(--border)] p-5 w-[240px]">
+        <div className="canvas-tooltip absolute z-20 pointer-events-none" style={{ left: cx + 60, top: cy - 120 }}>
+          <div className="bg-white rounded-2xl shadow-xl border border-[var(--border)] p-5 w-[300px]">
             <h4 className="text-sm font-black text-[var(--accent)] mb-2">Global Consensus</h4>
             <p className="text-xs text-[var(--text-secondary)] leading-relaxed mb-3">
-              All {agents.length} agents vote on stocks that pass their group review. 70% weighted approval required.
+              All {agents.length} agents vote on stocks that pass their group review. Weighted approval required.
             </p>
-            <div className="grid grid-cols-2 gap-2 text-center">
-              <div className="rounded-xl bg-[var(--accent-light)] px-3 py-2">
-                <p className="text-lg font-black text-[var(--accent)]">{clusters.length}</p>
-                <p className="text-[9px] font-semibold text-[var(--text-muted)]">GROUPS</p>
+            <div className="grid grid-cols-4 gap-2 text-center mb-3">
+              <div className="rounded-xl bg-[var(--accent-light)] px-2 py-2">
+                <p className="text-base font-black text-[var(--accent)]">{clusters.length}</p>
+                <p className="text-[8px] font-semibold text-[var(--text-muted)]">GROUPS</p>
               </div>
-              <div className="rounded-xl bg-[var(--accent-light)] px-3 py-2">
-                <p className="text-lg font-black text-[var(--accent)]">{agents.length}</p>
-                <p className="text-[9px] font-semibold text-[var(--text-muted)]">AGENTS</p>
+              <div className="rounded-xl bg-[var(--accent-light)] px-2 py-2">
+                <p className="text-base font-black text-[var(--accent)]">{pipelineStats.total}</p>
+                <p className="text-[8px] font-semibold text-[var(--text-muted)]">PROPOSED</p>
+              </div>
+              <div className="rounded-xl bg-[var(--positive-light)] px-2 py-2">
+                <p className="text-base font-black text-[var(--positive)]">{pipelineStats.approved}</p>
+                <p className="text-[8px] font-semibold text-[var(--text-muted)]">APPROVED</p>
+              </div>
+              <div className="rounded-xl bg-[var(--negative-light)] px-2 py-2">
+                <p className="text-base font-black text-[var(--negative)]">{pipelineStats.rejected}</p>
+                <p className="text-[8px] font-semibold text-[var(--text-muted)]">REJECTED</p>
               </div>
             </div>
+
+            {/* Recent approved trades */}
+            {pipelineStats.approved > 0 && (
+              <div className="mb-3">
+                <p className="text-[10px] font-bold text-[var(--positive)] uppercase tracking-wider mb-1.5">Latest Approved</p>
+                <div className="space-y-1 max-h-[120px] overflow-y-auto">
+                  {trades.filter((t) => t.vote_result === "approved").slice(0, 5).map((t, i) => (
+                    <div key={t.trade_id || i} className="flex items-center justify-between py-1 px-2 rounded-lg bg-[var(--bg-hover)]">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-black text-[var(--text-primary)]">{t.direction?.toUpperCase()} {t.symbol}</span>
+                        <span className="text-[8px] font-bold px-1.5 py-0.5 rounded bg-[var(--accent)] text-white">{t.strategy_used?.replace(/_/g, " ") || "swing"}</span>
+                      </div>
+                      <span className="text-[10px] font-bold text-[var(--positive)]">{Math.round((t.confidence || 0) * 100)}%</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Trade types breakdown */}
+            {pipelineStats.strategies.length > 0 && (
+              <div className="pt-2 border-t border-[var(--border)]">
+                <p className="text-[9px] font-bold text-[var(--text-muted)] uppercase tracking-wider mb-1.5">Trade Types</p>
+                <div className="flex gap-1.5 flex-wrap">
+                  {pipelineStats.strategies.map((s) => (
+                    <span key={s} className="rounded-full px-2 py-0.5 text-[9px] font-semibold capitalize bg-[var(--accent-light)] text-[var(--accent)]">{(s || "").replace(/_/g, " ")}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {pipelineStats.total === 0 && (
+              <p className="text-[9px] text-[var(--text-muted)] italic">No trades proposed yet — currently in overnight scanning mode</p>
+            )}
           </div>
         </div>
       )}
